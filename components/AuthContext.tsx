@@ -62,10 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      setRole('member');
+      // 【修正】未ログイン時は role を null にする（勝手に 'member' にしない）
+      setUser(null);
+      setRole(null);
     } catch (err) {
       console.error('Auth fetch error:', err);
-      setRole('member');
+      setUser(null);
+      setRole(null);
     } finally {
       setLoading(false);
     }
@@ -76,6 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
+      if (!session?.user) {
+        // ログアウト時などにlocalStorageもクリアする等が必要な場合はここで処理
+        setRole(null);
+      }
       fetchAuth();
     });
 
