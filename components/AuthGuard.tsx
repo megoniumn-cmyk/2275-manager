@@ -178,9 +178,11 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         throw new Error('パスワードが違います');
       }
 
-      // 【修正】確実かつ一発で状態を反映させるため、localStorage保存後に明示的にリロードする
+      // ストレージに確実に保存してから少し待ってリロード
       localStorage.setItem('logged_in_game_id', gameIdInput);
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     } catch (err: any) {
       setErrorMsg(err.message || 'ログインに失敗しました');
       setSubmitting(false);
@@ -203,10 +205,12 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       const currentPath = window.location.pathname + window.location.search;
       localStorage.setItem('redirect_after_login', currentPath);
 
+      // ポップアップブロックを回避するためリダイレクト方式に変更
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: window.location.origin,
+          skipBrowserRedirect: false,
         },
       });
 
@@ -293,26 +297,25 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (hasPermission === false) {
+    // 権限がない場合は自動でログアウト処理を走らせてログイン画面に戻す
+    localStorage.removeItem('logged_in_game_id');
+    supabase.auth.signOut();
+
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center p-4">
-        <div className="absolute top-4 right-4 z-50">
-          <button
-            onClick={handleLogout}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md text-xs border border-slate-700 transition cursor-pointer"
-          >
-            ログアウト
-          </button>
-        </div>
         <div className="bg-[#151c2c] border border-slate-800 rounded-2xl w-full max-w-md p-8 text-center space-y-4 shadow-2xl">
           <h1 className="text-xl font-bold text-rose-400">アクセス権限がありません</h1>
           <p className="text-sm text-slate-400">
-            このページを閲覧する権限がないか、アカウントが退会済み（ステータス：left）に設定されています。
+            権限がないかセッションが無効です。ログイン画面に戻ります。
           </p>
           <button
-            onClick={() => (window.location.href = '/')}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition cursor-pointer"
+            onClick={() => {
+              localStorage.clear();
+              window.location.href = '/';
+            }}
+            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm transition cursor-pointer"
           >
-            ホームへ戻る
+            ログイン画面へ
           </button>
         </div>
       </div>
