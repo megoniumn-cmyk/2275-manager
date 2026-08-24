@@ -178,12 +178,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         throw new Error('パスワードが違います');
       }
 
+      // 【修正】確実かつ一発で状態を反映させるため、localStorage保存後に明示的にリロードする
       localStorage.setItem('logged_in_game_id', gameIdInput);
-      
-      // 【修正】確実にストレージに保存したあと、リロードせずに直接状態を再検証する
-      setIsLoggedIn(true);
-      await verifyAuthAndPermission();
-      setSubmitting(false);
+      window.location.reload();
     } catch (err: any) {
       setErrorMsg(err.message || 'ログインに失敗しました');
       setSubmitting(false);
@@ -209,7 +206,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
-          redirectTo: `${window.location.origin}${window.location.pathname}`,
+          redirectTo: `${window.location.origin}/`,
         },
       });
 
@@ -220,7 +217,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
   };
 
-  // 【修正】判定中のときは背景を完全に隠すローディング画面を表示する（ダッシュボードが透けて見えるのを防ぐ）
   if (isLoggedIn === null || (isLoggedIn && hasPermission === null)) {
     return (
       <div className="fixed inset-0 z-50 bg-[#0b0f19] text-slate-100 flex items-center justify-center">
