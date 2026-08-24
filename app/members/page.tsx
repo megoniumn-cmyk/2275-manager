@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import AuthGuard from '@/components/AuthGuard';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -773,746 +772,744 @@ export default function MembersPage() {
   };
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-[#0b0f19] text-slate-100 font-sans flex flex-col" onClick={() => setActiveFilterMenu(null)}>
-        <main className="flex-1 max-w-[1900px] mx-auto p-6 w-full space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between bg-[#151c2c] border border-slate-800 rounded-xl p-6 shadow-xl gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold flex items-center gap-2 text-white">📋 メンバーリスト管理</h1>
-                {currentUser && (
-                  <span className="text-xs px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-300">
-                    ログイン中: <strong className="text-cyan-400">{currentUser.name || currentUser.game_id}</strong> (Role: {currentUser.web_role})
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-slate-400 mt-1">メンバーの一覧確認、詳細データの編集、CSV入出力を行います。</p>
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 font-sans flex flex-col" onClick={() => setActiveFilterMenu(null)}>
+      <main className="flex-1 max-w-[1900px] mx-auto p-6 w-full space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between bg-[#151c2c] border border-slate-800 rounded-xl p-6 shadow-xl gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold flex items-center gap-2 text-white">📋 メンバーリスト管理</h1>
+              {currentUser && (
+                <span className="text-xs px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-300">
+                  ログイン中: <strong className="text-cyan-400">{currentUser.name || currentUser.game_id}</strong> (Role: {currentUser.web_role})
+                </span>
+              )}
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              {/* ★ 追加: Discord除名確認モーダルを開くボタン（未確認者がいるときバッジ表示） */}
-              <button
-                onClick={() => setIsDiscordCheckModalOpen(true)}
-                className="relative px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-medium transition shadow flex items-center gap-2"
-              >
-                <span>🚨 除名Discord確認</span>
-                {uncheckDiscordMembers.length > 0 && (
-                  <span className="bg-white text-rose-600 font-bold px-1.5 py-0.5 rounded-full text-[10px]">
-                    {uncheckDiscordMembers.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={handleDiscordSync}
-                className="px-3.5 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-xs font-medium transition shadow"
-              >
-                🤖 Discord連携
-              </button>
-              <button
-                onClick={handleSyncProfiles}
-                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-medium transition shadow"
-              >
-                🔄 Profiles同期
-              </button>
-              <button
-                onClick={handleExportMembersCSV}
-                className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition shadow"
-              >
-                📥 メンバーCSV出力
-              </button>
-              <label className="px-3.5 py-2 bg-indigo-700 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium transition shadow cursor-pointer">
-                📤 メンバーCSV取込
-                <input
-                  ref={memberFileInputRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleImportMembersCSV}
-                  className="hidden"
-                />
-              </label>
-              <button
-                onClick={() => {
-                  setEditingMember({
-                    discord_id: `temp_${Math.random().toString(36).substring(2, 11)}`,
-                    name: '',
-                    rank_role: 'R1',
-                    alliance: '',
-                    fc_level: 'FC6 以下',
-                    planet: 1,
-                    leader: false,
-                    game_id: '',
-                    main_game_id: '',
-                    shield_soldier: 'FC6T10以下',
-                    spear_soldier: 'FC6T10以下',
-                    bow_soldier: 'FC6T10以下',
-                    power_before_migration: '',
-                    current_power: '',
-                    transfer: '',
-                    bear: '21時',
-                    state: '',
-                    status: 'active',
-                    discord_checked: false,
-                    hero_hendrik: 0,
-                    hero_gatto: 0,
-                    hero_gordon: 0,
-                    hero_muming: 0,
-                    hero_renee: 0,
-                    hero_norah: 0,
-                    hero_mia: 0,
-                    hero_phily: 0,
-                    hero_zinman: 0,
-                    gareth_2: 0,
-                    gareth_3: 0,
-                    gareth_4: 0,
-                    gen_discord: false,
-                    is_in_2275: false,
-                    info_sharing: false,
-                    note: '',
-                    updated_at: new Date().toISOString()
-                  });
-                }}
-                className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition shadow"
-              >
-                ➕ 新規登録
-              </button>
-              
-              <button
-                onClick={() => setIsTransferModalOpen(true)}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition shadow"
-              >
-                ➕ 移民時期追加
-              </button>
-
-              <button
-                onClick={() => setShowPastMembers(!showPastMembers)}
-                className={`px-3.5 py-2 rounded-lg text-xs font-medium transition shadow border ${
-                  showPastMembers
-                    ? 'bg-rose-700 text-white border-rose-600'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                }`}
-              >
-                {showPastMembers ? '👥 在籍中メンバーを表示' : '📁 過去メンバー（非在籍）'}
-              </button>
-            </div>
+            <p className="text-sm text-slate-400 mt-1">メンバーの一覧確認、詳細データの編集、CSV入出力を行います。</p>
           </div>
 
-          <input
-            type="text"
-            placeholder="名前、ゲームID、メインアカウント、役職、同盟で検索..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-[#151c2c] border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500"
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            {/* ★ 追加: Discord除名確認モーダルを開くボタン（未確認者がいるときバッジ表示） */}
+            <button
+              onClick={() => setIsDiscordCheckModalOpen(true)}
+              className="relative px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-medium transition shadow flex items-center gap-2"
+            >
+              <span>🚨 除名Discord確認</span>
+              {uncheckDiscordMembers.length > 0 && (
+                <span className="bg-white text-rose-600 font-bold px-1.5 py-0.5 rounded-full text-[10px]">
+                  {uncheckDiscordMembers.length}
+                </span>
+              )}
+            </button>
 
-          <div className="overflow-y-auto max-h-[75vh] border border-slate-800 rounded-lg">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-[#1e293b] text-slate-300 uppercase border-b border-slate-800 whitespace-nowrap sticky top-0 z-30">
-                <tr>
-                  <th className="p-3 text-center sticky left-0 z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-12 min-w-[48px]">
-                    作業
-                  </th>
-                  <HeaderCell
-                    title="ゲームアカウント名"
-                    fieldKey="name"
-                    className="sticky left-[48px] z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]"
-                  />
-                  <HeaderCell title="ゲームID" fieldKey="game_id" />
-                  <HeaderCell title="同盟名" fieldKey="alliance" />
-                  <HeaderCell title="Role" fieldKey="rank_role" />
-                  <HeaderCell title="FC" fieldKey="fc_level" />
-                  <HeaderCell title="盾兵" fieldKey="shield_soldier" />
-                  <HeaderCell title="槍兵" fieldKey="spear_soldier" />
-                  <HeaderCell title="弓兵" fieldKey="bow_soldier" />
-                  <HeaderCell title="リーダー" fieldKey="leader" />
-                  <HeaderCell title="総力(移民前)" fieldKey="power_before_migration" />
-                  <HeaderCell title="総力(現在)" fieldKey="current_power" />
-                  <HeaderCell title="移民時期" fieldKey="transfer" />
-                  <HeaderCell title="元鯖" fieldKey="state" />
-                  <HeaderCell title="ステータス" fieldKey="status" />
-                  <HeaderCell title="アクセス制限" fieldKey="banned_str" />
-                  <HeaderCell title="メインアカウント" fieldKey="main_game_id_name" />
-                  <HeaderCell title="Discord(2275)" fieldKey="is_in_2275_str" />
-                  <HeaderCell title="備考" fieldKey="note" />
-                  <HeaderCell title="最終更新日時" fieldKey="updated_at" />
-                  <th className="p-3 text-center bg-[#1e293b]">編集ボタン</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 whitespace-nowrap">
-                {processedMembers.map((member) => {
-                  const isLeft = member.status === 'left';
-                  return (
-                    <tr key={member.discord_id || member.game_id} className="hover:bg-slate-800/50 transition">
-                      <td className="p-3 text-center sticky left-0 z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-12 min-w-[48px]">
+            <button
+              onClick={handleDiscordSync}
+              className="px-3.5 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-xs font-medium transition shadow"
+            >
+              🤖 Discord連携
+            </button>
+            <button
+              onClick={handleSyncProfiles}
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-medium transition shadow"
+            >
+              🔄 Profiles同期
+            </button>
+            <button
+              onClick={handleExportMembersCSV}
+              className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition shadow"
+            >
+              📥 メンバーCSV出力
+            </button>
+            <label className="px-3.5 py-2 bg-indigo-700 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium transition shadow cursor-pointer">
+              📤 メンバーCSV取込
+              <input
+                ref={memberFileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleImportMembersCSV}
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={() => {
+                setEditingMember({
+                  discord_id: `temp_${Math.random().toString(36).substring(2, 11)}`,
+                  name: '',
+                  rank_role: 'R1',
+                  alliance: '',
+                  fc_level: 'FC6 以下',
+                  planet: 1,
+                  leader: false,
+                  game_id: '',
+                  main_game_id: '',
+                  shield_soldier: 'FC6T10以下',
+                  spear_soldier: 'FC6T10以下',
+                  bow_soldier: 'FC6T10以下',
+                  power_before_migration: '',
+                  current_power: '',
+                  transfer: '',
+                  bear: '21時',
+                  state: '',
+                  status: 'active',
+                  discord_checked: false,
+                  hero_hendrik: 0,
+                  hero_gatto: 0,
+                  hero_gordon: 0,
+                  hero_muming: 0,
+                  hero_renee: 0,
+                  hero_norah: 0,
+                  hero_mia: 0,
+                  hero_phily: 0,
+                  hero_zinman: 0,
+                  gareth_2: 0,
+                  gareth_3: 0,
+                  gareth_4: 0,
+                  gen_discord: false,
+                  is_in_2275: false,
+                  info_sharing: false,
+                  note: '',
+                  updated_at: new Date().toISOString()
+                });
+              }}
+              className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition shadow"
+            >
+              ➕ 新規登録
+            </button>
+            
+            <button
+              onClick={() => setIsTransferModalOpen(true)}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition shadow"
+            >
+              ➕ 移民時期追加
+            </button>
+
+            <button
+              onClick={() => setShowPastMembers(!showPastMembers)}
+              className={`px-3.5 py-2 rounded-lg text-xs font-medium transition shadow border ${
+                showPastMembers
+                  ? 'bg-rose-700 text-white border-rose-600'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+            >
+              {showPastMembers ? '👥 在籍中メンバーを表示' : '📁 過去メンバー（非在籍）'}
+            </button>
+          </div>
+        </div>
+
+        <input
+          type="text"
+          placeholder="名前、ゲームID、メインアカウント、役職、同盟で検索..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-[#151c2c] border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500"
+        />
+
+        <div className="overflow-y-auto max-h-[75vh] border border-slate-800 rounded-lg">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-[#1e293b] text-slate-300 uppercase border-b border-slate-800 whitespace-nowrap sticky top-0 z-30">
+              <tr>
+                <th className="p-3 text-center sticky left-0 z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-12 min-w-[48px]">
+                  作業
+                </th>
+                <HeaderCell
+                  title="ゲームアカウント名"
+                  fieldKey="name"
+                  className="sticky left-[48px] z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]"
+                />
+                <HeaderCell title="ゲームID" fieldKey="game_id" />
+                <HeaderCell title="同盟名" fieldKey="alliance" />
+                <HeaderCell title="Role" fieldKey="rank_role" />
+                <HeaderCell title="FC" fieldKey="fc_level" />
+                <HeaderCell title="盾兵" fieldKey="shield_soldier" />
+                <HeaderCell title="槍兵" fieldKey="spear_soldier" />
+                <HeaderCell title="弓兵" fieldKey="bow_soldier" />
+                <HeaderCell title="リーダー" fieldKey="leader" />
+                <HeaderCell title="総力(移民前)" fieldKey="power_before_migration" />
+                <HeaderCell title="総力(現在)" fieldKey="current_power" />
+                <HeaderCell title="移民時期" fieldKey="transfer" />
+                <HeaderCell title="元鯖" fieldKey="state" />
+                <HeaderCell title="ステータス" fieldKey="status" />
+                <HeaderCell title="アクセス制限" fieldKey="banned_str" />
+                <HeaderCell title="メインアカウント" fieldKey="main_game_id_name" />
+                <HeaderCell title="Discord(2275)" fieldKey="is_in_2275_str" />
+                <HeaderCell title="備考" fieldKey="note" />
+                <HeaderCell title="最終更新日時" fieldKey="updated_at" />
+                <th className="p-3 text-center bg-[#1e293b]">編集ボタン</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800 whitespace-nowrap">
+              {processedMembers.map((member) => {
+                const isLeft = member.status === 'left';
+                return (
+                  <tr key={member.discord_id || member.game_id} className="hover:bg-slate-800/50 transition">
+                    <td className="p-3 text-center sticky left-0 z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-12 min-w-[48px]">
+                      <input
+                        type="checkbox"
+                        checked={!!checkedRows[member.discord_id]}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setCheckedRows((prev) => ({
+                            ...prev,
+                            [member.discord_id]: isChecked,
+                          }));
+                        }}
+                        className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0 cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-3 font-medium text-white sticky left-[48px] z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]">
+                      {member.name}
+                    </td>
+                    <td className="p-3 text-slate-300">{member.game_id || '-'}</td>
+                    <td className="p-3 font-bold text-indigo-400">{member.alliance || '-'}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 bg-slate-700 rounded font-bold text-slate-300">
+                        {member.rank_role || '-'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-slate-300">{member.fc_level || '-'}</td>
+                    <td className="p-3 text-emerald-400 font-medium">{member.shield_soldier || '-'}</td>
+                    <td className="p-3 text-emerald-400 font-medium">{member.spear_soldier || '-'}</td>
+                    <td className="p-3 text-emerald-400 font-medium">{member.bow_soldier || '-'}</td>
+                    <td className="p-3 text-center">{member.leader ? '〇' : '-'}</td>
+                    <td className="p-3 text-slate-300">{member.power_before_migration || '-'}</td>
+                    <td className="p-3 text-slate-300">{member.current_power || '-'}</td>
+                    <td className="p-3 text-slate-300">{member.transfer || '-'}</td>
+                    <td className="p-3 text-cyan-300 font-mono">{member.state || '-'}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                        isLeft ? 'bg-rose-900/50 text-rose-300' : 'bg-emerald-900/50 text-emerald-300'
+                      }`}>
+                        {isLeft ? '除名' : '在籍中'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      {isLeft ? (
+                        <span className="px-2 py-0.5 bg-rose-600/30 text-rose-400 rounded text-[11px] font-bold">アクセス拒否</span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-emerald-600/30 text-emerald-400 rounded text-[11px] font-bold">アクセス許可</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-cyan-400">{getMainAccountName(member.main_game_id)}</td>
+                    <td className="p-3 text-center">{member.is_in_2275 ? '○' : '-'}</td>
+                    <td className="p-3 text-slate-300 max-w-xs truncate">{member.note || '-'}</td>
+                    <td className="p-3 text-slate-400 text-xs">
+                      {getMemberValue(member, 'updated_at')}
+                    </td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => setEditingMember(member)}
+                        className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-medium shadow transition"
+                      >
+                        編集
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ★ 追加: 除名メンバーDiscord確認用モーダル */}
+        {isDiscordCheckModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-[#151c2c] border border-slate-700 rounded-2xl w-full max-w-3xl p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <span>🚨 Discord除名・ロール変更確認リスト</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    ステータスが「除名」かつDiscord確認が未完了のメンバーです。対応後に「確認完了」を押してください。
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsDiscordCheckModalOpen(false)}
+                  className="text-slate-400 hover:text-white font-bold text-lg px-2"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center bg-[#0b0f19] p-3 rounded-lg border border-slate-800">
+                <span className="text-xs text-slate-300">
+                  未確認メンバー数: <strong className="text-rose-400">{uncheckDiscordMembers.length} 件</strong>
+                </span>
+                {uncheckDiscordMembers.length > 0 && (
+                  <button
+                    onClick={handleBatchMarkDiscordChecked}
+                    className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-medium transition shadow"
+                  >
+                    ☑ 選択したメンバーを一括で確認完了にする
+                  </button>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                {uncheckDiscordMembers.length === 0 ? (
+                  <div className="text-center py-12 text-slate-500 text-sm">
+                    現在、確認待ちの除名メンバーはいません 🎉
+                  </div>
+                ) : (
+                  uncheckDiscordMembers.map((m) => (
+                    <div
+                      key={m.discord_id}
+                      className="flex items-center justify-between bg-[#0b0f19] border border-slate-800 hover:border-slate-700 p-3 rounded-xl transition gap-3"
+                    >
+                      <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
-                          checked={!!checkedRows[member.discord_id]}
+                          checked={!!discordCheckRows[m.discord_id]}
                           onChange={(e) => {
-                            const isChecked = e.target.checked;
-                            setCheckedRows((prev) => ({
+                            const checked = e.target.checked;
+                            setDiscordCheckRows((prev) => ({
                               ...prev,
-                              [member.discord_id]: isChecked,
+                              [m.discord_id]: checked,
                             }));
                           }}
                           className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0 cursor-pointer"
                         />
-                      </td>
-                      <td className="p-3 font-medium text-white sticky left-[48px] z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]">
-                        {member.name}
-                      </td>
-                      <td className="p-3 text-slate-300">{member.game_id || '-'}</td>
-                      <td className="p-3 font-bold text-indigo-400">{member.alliance || '-'}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 bg-slate-700 rounded font-bold text-slate-300">
-                          {member.rank_role || '-'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-300">{member.fc_level || '-'}</td>
-                      <td className="p-3 text-emerald-400 font-medium">{member.shield_soldier || '-'}</td>
-                      <td className="p-3 text-emerald-400 font-medium">{member.spear_soldier || '-'}</td>
-                      <td className="p-3 text-emerald-400 font-medium">{member.bow_soldier || '-'}</td>
-                      <td className="p-3 text-center">{member.leader ? '〇' : '-'}</td>
-                      <td className="p-3 text-slate-300">{member.power_before_migration || '-'}</td>
-                      <td className="p-3 text-slate-300">{member.current_power || '-'}</td>
-                      <td className="p-3 text-slate-300">{member.transfer || '-'}</td>
-                      <td className="p-3 text-cyan-300 font-mono">{member.state || '-'}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                          isLeft ? 'bg-rose-900/50 text-rose-300' : 'bg-emerald-900/50 text-emerald-300'
-                        }`}>
-                          {isLeft ? '除名' : '在籍中'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        {isLeft ? (
-                          <span className="px-2 py-0.5 bg-rose-600/30 text-rose-400 rounded text-[11px] font-bold">アクセス拒否</span>
-                        ) : (
-                          <span className="px-2 py-0.5 bg-emerald-600/30 text-emerald-400 rounded text-[11px] font-bold">アクセス許可</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-cyan-400">{getMainAccountName(member.main_game_id)}</td>
-                      <td className="p-3 text-center">{member.is_in_2275 ? '○' : '-'}</td>
-                      <td className="p-3 text-slate-300 max-w-xs truncate">{member.note || '-'}</td>
-                      <td className="p-3 text-slate-400 text-xs">
-                        {getMemberValue(member, 'updated_at')}
-                      </td>
-                      <td className="p-3 text-center">
-                        <button
-                          onClick={() => setEditingMember(member)}
-                          className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-medium shadow transition"
-                        >
-                          編集
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ★ 追加: 除名メンバーDiscord確認用モーダル */}
-          {isDiscordCheckModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-              <div className="bg-[#151c2c] border border-slate-700 rounded-2xl w-full max-w-3xl p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <span>🚨 Discord除名・ロール変更確認リスト</span>
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      ステータスが「除名」かつDiscord確認が未完了のメンバーです。対応後に「確認完了」を押してください。
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setIsDiscordCheckModalOpen(false)}
-                    className="text-slate-400 hover:text-white font-bold text-lg px-2"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="flex justify-between items-center bg-[#0b0f19] p-3 rounded-lg border border-slate-800">
-                  <span className="text-xs text-slate-300">
-                    未確認メンバー数: <strong className="text-rose-400">{uncheckDiscordMembers.length} 件</strong>
-                  </span>
-                  {uncheckDiscordMembers.length > 0 && (
-                    <button
-                      onClick={handleBatchMarkDiscordChecked}
-                      className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-medium transition shadow"
-                    >
-                      ☑ 選択したメンバーを一括で確認完了にする
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                  {uncheckDiscordMembers.length === 0 ? (
-                    <div className="text-center py-12 text-slate-500 text-sm">
-                      現在、確認待ちの除名メンバーはいません 🎉
-                    </div>
-                  ) : (
-                    uncheckDiscordMembers.map((m) => (
-                      <div
-                        key={m.discord_id}
-                        className="flex items-center justify-between bg-[#0b0f19] border border-slate-800 hover:border-slate-700 p-3 rounded-xl transition gap-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={!!discordCheckRows[m.discord_id]}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setDiscordCheckRows((prev) => ({
-                                ...prev,
-                                [m.discord_id]: checked,
-                              }));
-                            }}
-                            className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0 cursor-pointer"
-                          />
-                          <div>
-                            <div className="text-sm font-bold text-white flex items-center gap-2">
-                              <span>{m.name}</span>
-                              <span className="text-xs text-indigo-400 bg-indigo-950/50 px-2 py-0.5 rounded">
-                                {m.alliance || '同盟なし'}
-                              </span>
-                            </div>
-                            <div className="text-xs text-slate-400 flex gap-3 mt-1">
-                              <span>ゲームID: <strong className="text-slate-200">{m.game_id || '-'}</strong></span>
-                              <span>Discord ID: <strong className="text-slate-200">{m.discord_id}</strong></span>
-                            </div>
+                        <div>
+                          <div className="text-sm font-bold text-white flex items-center gap-2">
+                            <span>{m.name}</span>
+                            <span className="text-xs text-indigo-400 bg-indigo-950/50 px-2 py-0.5 rounded">
+                              {m.alliance || '同盟なし'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-400 flex gap-3 mt-1">
+                            <span>ゲームID: <strong className="text-slate-200">{m.game_id || '-'}</strong></span>
+                            <span>Discord ID: <strong className="text-slate-200">{m.discord_id}</strong></span>
                           </div>
                         </div>
-
-                        <button
-                          onClick={() => handleMarkDiscordChecked(m.discord_id)}
-                          className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition shadow shrink-0"
-                        >
-                          確認完了
-                        </button>
                       </div>
-                    ))
-                  )}
-                </div>
 
-                <div className="flex justify-end pt-2 border-t border-slate-800">
-                  <button
-                    onClick={() => setIsDiscordCheckModalOpen(false)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium"
-                  >
-                    閉じる
-                  </button>
-                </div>
+                      <button
+                        onClick={() => handleMarkDiscordChecked(m.discord_id)}
+                        className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition shadow shrink-0"
+                      >
+                        確認完了
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-800">
+                <button
+                  onClick={() => setIsDiscordCheckModalOpen(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium"
+                >
+                  閉じる
+                </button>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {editingMember && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
-              <div className="bg-[#151c2c] border border-slate-700 rounded-2xl w-full max-w-4xl p-6 md:p-8 shadow-2xl my-8 space-y-6 max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-                  <h2 className="text-xl font-bold text-white">
-                    {editingMember.discord_id?.startsWith('temp_') ? 'メンバー新規登録' : 'メンバー情報編集'}
-                  </h2>
+        {editingMember && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 overflow-y-auto">
+            <div className="bg-[#151c2c] border border-slate-700 rounded-2xl w-full max-w-4xl p-6 md:p-8 shadow-2xl my-8 space-y-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+                <h2 className="text-xl font-bold text-white">
+                  {editingMember.discord_id?.startsWith('temp_') ? 'メンバー新規登録' : 'メンバー情報編集'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setEditingMember(null)}
+                  className="text-slate-400 hover:text-white text-lg font-bold px-2 py-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveMember} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">ゲームアカウント名 *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingMember.name || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">ゲームID</label>
+                    <input
+                      type="text"
+                      value={editingMember.game_id || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, game_id: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">メインアカウント (選択・検索)</label>
+                    <input
+                      type="text"
+                      list="members-search-list"
+                      value={editingMember.main_game_id || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, main_game_id: e.target.value })}
+                      placeholder="名前かgame_idで検索・入力"
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    />
+                    <datalist id="members-search-list">
+                      {Array.from(
+                        new Map(
+                          members.map((m) => [
+                            m.game_id || m.discord_id, 
+                            m
+                          ])
+                        ).values()
+                      ).map((m) => {
+                        const displayValue = m.game_id || m.name;
+                        if (!displayValue) return null;
+                        const label = m.name && m.game_id ? `${m.name} (ID: ${m.game_id})` : m.name || m.game_id;
+                        return (
+                          <option key={m.discord_id || m.game_id} value={displayValue}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                    </datalist>
+                    <p className="text-[10px] text-slate-400 mt-1">※ 既存メンバーの名前やゲームIDを入力・選択できます</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">同盟名</label>
+                    <select
+                      value={editingMember.alliance || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, alliance: e.target.value === '' ? null : e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="">-</option>
+                      <option value="GEN">GEN</option>
+                      <option value="GOD">GOD</option>
+                      <option value="www">www</option>
+                      <option value="RPN">RPN</option>
+                      <option value="MSO">MSO</option>
+                      <option value="NPT">NPT</option>
+                      <option value="JvA">JvA</option>
+                      <option value="ABU">ABU</option>
+                      <option value="HUN">HUN</option>
+                      <option value="ARK">ARK</option>
+                      <option value="UTP">UTP</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Role</label>
+                    <select
+                      value={editingMember.rank_role || 'R1'}
+                      onChange={(e) => setEditingMember({ ...editingMember, rank_role: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="R4以上">R4以上</option>
+                      <option value="R3">R3</option>
+                      <option value="R2">R2</option>
+                      <option value="R1">R1</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">ステータス</label>
+                    <select
+                      value={editingMember.status || 'active'}
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        setEditingMember({
+                          ...editingMember,
+                          status: newStatus,
+                        });
+                      }}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="active">在籍中 (active)</option>
+                      <option value="left">除名 (left)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">FC</label>
+                    <select
+                      value={editingMember.fc_level || 'FC6 以下'}
+                      onChange={(e) => setEditingMember({ ...editingMember, fc_level: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="FC10">FC10</option>
+                      <option value="FC9">FC9</option>
+                      <option value="FC8">FC8</option>
+                      <option value="FC7">FC7</option>
+                      <option value="FC6 以下">FC6 以下</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">総力(現在) 例: 1.2B</label>
+                    <input
+                      type="text"
+                      value={editingMember.current_power || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, current_power: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div className="hidden lg:block"></div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">盾兵</label>
+                    <select
+                      value={editingMember.shield_soldier || 'FC6T10以下'}
+                      onChange={(e) => setEditingMember({ ...editingMember, shield_soldier: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="FC10T11">FC10T11</option>
+                      <option value="FC9T11">FC9T11</option>
+                      <option value="FC8T11">FC8T11</option>
+                      <option value="FC7T11">FC7T11</option>
+                      <option value="FC6T11">FC6T11</option>
+                      <option value="FC5T11">FC5T11</option>
+                      <option value="FC10T10">FC10T10</option>
+                      <option value="FC9T10">FC9T10</option>
+                      <option value="FC8T10">FC8T10</option>
+                      <option value="FC7T10">FC7T10</option>
+                      <option value="FC6T10以下">FC6T10以下</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">槍兵</label>
+                    <select
+                      value={editingMember.spear_soldier || 'FC6T10以下'}
+                      onChange={(e) => setEditingMember({ ...editingMember, spear_soldier: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="FC10T11">FC10T11</option>
+                      <option value="FC9T11">FC9T11</option>
+                      <option value="FC8T11">FC8T11</option>
+                      <option value="FC7T11">FC7T11</option>
+                      <option value="FC6T11">FC6T11</option>
+                      <option value="FC5T11">FC5T11</option>
+                      <option value="FC10T10">FC10T10</option>
+                      <option value="FC9T10">FC9T10</option>
+                      <option value="FC8T10">FC8T10</option>
+                      <option value="FC7T10">FC7T10</option>
+                      <option value="FC6T10以下">FC6T10以下</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">弓兵</label>
+                    <select
+                      value={editingMember.bow_soldier || 'FC6T10以下'}
+                      onChange={(e) => setEditingMember({ ...editingMember, bow_soldier: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="FC10T11">FC10T11</option>
+                      <option value="FC9T11">FC9T11</option>
+                      <option value="FC8T11">FC8T11</option>
+                      <option value="FC7T11">FC7T11</option>
+                      <option value="FC6T11">FC6T11</option>
+                      <option value="FC5T11">FC5T11</option>
+                      <option value="FC10T10">FC10T10</option>
+                      <option value="FC9T10">FC9T10</option>
+                      <option value="FC8T10">FC8T10</option>
+                      <option value="FC7T10">FC7T10</option>
+                      <option value="FC6T10以下">FC6T10以下</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">移民時期</label>
+                    <select
+                      value={editingMember.transfer || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, transfer: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="">-</option>
+                      {transferOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">総力(移民前) 例: 650M</label>
+                    <input
+                      type="text"
+                      value={editingMember.power_before_migration || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, power_before_migration: e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div className="hidden lg:block"></div>
+
+                  <div className="md:col-span-2 lg:col-span-3">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">元鯖 (カンマ区切り)</label>
+                    <input
+                      type="text"
+                      list="existing-states-list"
+                      value={editingMember.state || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, state: e.target.value })}
+                      placeholder="例: 2352, 2359"
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    />
+                    <datalist id="existing-states-list">
+                      {existingStateOptions.map((st) => (
+                        <option key={st} value={st} />
+                      ))}
+                    </datalist>
+
+                    {existingStateOptions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        <span className="text-[10px] text-slate-400 self-center mr-1">クイック追加:</span>
+                        {existingStateOptions.map((st) => {
+                          const currentStates = (editingMember.state || '')
+                            .split(',')
+                            .map((s) => s.trim())
+                            .filter(Boolean);
+                          const isAlreadyAdded = currentStates.includes(st);
+
+                          return (
+                            <button
+                              type="button"
+                              key={st}
+                              onClick={() => {
+                                if (isAlreadyAdded) return;
+                                const stateVal = editingMember.state ?? '';
+                                const updated = currentStates.length > 0
+                                  ? `${stateVal.trim()}, ${st}`
+                                  : st;
+                                setEditingMember({ ...editingMember, state: updated });
+                              }}
+                              className={`px-2 py-0.5 text-[11px] rounded transition border ${
+                                isAlreadyAdded
+                                  ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-cyan-300 border-slate-700'
+                              }`}
+                            >
+                              {st} {isAlreadyAdded && '✓'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+                  <label className="flex items-center gap-2 cursor-pointer bg-[#0b0f19] p-3 rounded-lg border border-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={!!editingMember.leader}
+                      onChange={(e) => setEditingMember({ ...editingMember, leader: e.target.checked })}
+                      className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0"
+                    />
+                    <span className="text-xs font-semibold text-slate-200">リーダー</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer bg-[#0b0f19] p-3 rounded-lg border border-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={!!editingMember.is_in_2275}
+                      onChange={(e) => setEditingMember({ ...editingMember, is_in_2275: e.target.checked })}
+                      className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0"
+                    />
+                    <span className="text-xs font-semibold text-slate-200">Discord(2275)</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">備考</label>
+                  <textarea
+                    rows={3}
+                    value={editingMember.note || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, note: e.target.value })}
+                    className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    placeholder="自由記入欄..."
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
                   <button
                     type="button"
                     onClick={() => setEditingMember(null)}
-                    className="text-slate-400 hover:text-white text-lg font-bold px-2 py-1"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveMember} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">ゲームアカウント名 *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editingMember.name || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">ゲームID</label>
-                      <input
-                        type="text"
-                        value={editingMember.game_id || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, game_id: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">メインアカウント (選択・検索)</label>
-                      <input
-                        type="text"
-                        list="members-search-list"
-                        value={editingMember.main_game_id || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, main_game_id: e.target.value })}
-                        placeholder="名前かgame_idで検索・入力"
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      />
-                      <datalist id="members-search-list">
-                        {Array.from(
-                          new Map(
-                            members.map((m) => [
-                              m.game_id || m.discord_id, 
-                              m
-                            ])
-                          ).values()
-                        ).map((m) => {
-                          const displayValue = m.game_id || m.name;
-                          if (!displayValue) return null;
-                          const label = m.name && m.game_id ? `${m.name} (ID: ${m.game_id})` : m.name || m.game_id;
-                          return (
-                            <option key={m.discord_id || m.game_id} value={displayValue}>
-                              {label}
-                            </option>
-                          );
-                        })}
-                      </datalist>
-                      <p className="text-[10px] text-slate-400 mt-1">※ 既存メンバーの名前やゲームIDを入力・選択できます</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">同盟名</label>
-                      <select
-                        value={editingMember.alliance || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, alliance: e.target.value === '' ? null : e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        <option value="">-</option>
-                        <option value="GEN">GEN</option>
-                        <option value="GOD">GOD</option>
-                        <option value="www">www</option>
-                        <option value="RPN">RPN</option>
-                        <option value="MSO">MSO</option>
-                        <option value="NPT">NPT</option>
-                        <option value="JvA">JvA</option>
-                        <option value="ABU">ABU</option>
-                        <option value="HUN">HUN</option>
-                        <option value="ARK">ARK</option>
-                        <option value="UTP">UTP</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Role</label>
-                      <select
-                        value={editingMember.rank_role || 'R1'}
-                        onChange={(e) => setEditingMember({ ...editingMember, rank_role: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        <option value="R4以上">R4以上</option>
-                        <option value="R3">R3</option>
-                        <option value="R2">R2</option>
-                        <option value="R1">R1</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">ステータス</label>
-                      <select
-                        value={editingMember.status || 'active'}
-                        onChange={(e) => {
-                          const newStatus = e.target.value;
-                          setEditingMember({
-                            ...editingMember,
-                            status: newStatus,
-                          });
-                        }}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        <option value="active">在籍中 (active)</option>
-                        <option value="left">除名 (left)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">FC</label>
-                      <select
-                        value={editingMember.fc_level || 'FC6 以下'}
-                        onChange={(e) => setEditingMember({ ...editingMember, fc_level: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        <option value="FC10">FC10</option>
-                        <option value="FC9">FC9</option>
-                        <option value="FC8">FC8</option>
-                        <option value="FC7">FC7</option>
-                        <option value="FC6 以下">FC6 以下</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">総力(現在) 例: 1.2B</label>
-                      <input
-                        type="text"
-                        value={editingMember.current_power || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, current_power: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      />
-                    </div>
-
-                    <div className="hidden lg:block"></div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">盾兵</label>
-                      <select
-                        value={editingMember.shield_soldier || 'FC6T10以下'}
-                        onChange={(e) => setEditingMember({ ...editingMember, shield_soldier: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        <option value="FC10T11">FC10T11</option>
-                        <option value="FC9T11">FC9T11</option>
-                        <option value="FC8T11">FC8T11</option>
-                        <option value="FC7T11">FC7T11</option>
-                        <option value="FC6T11">FC6T11</option>
-                        <option value="FC5T11">FC5T11</option>
-                        <option value="FC10T10">FC10T10</option>
-                        <option value="FC9T10">FC9T10</option>
-                        <option value="FC8T10">FC8T10</option>
-                        <option value="FC7T10">FC7T10</option>
-                        <option value="FC6T10以下">FC6T10以下</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">槍兵</label>
-                      <select
-                        value={editingMember.spear_soldier || 'FC6T10以下'}
-                        onChange={(e) => setEditingMember({ ...editingMember, spear_soldier: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        <option value="FC10T11">FC10T11</option>
-                        <option value="FC9T11">FC9T11</option>
-                        <option value="FC8T11">FC8T11</option>
-                        <option value="FC7T11">FC7T11</option>
-                        <option value="FC6T11">FC6T11</option>
-                        <option value="FC5T11">FC5T11</option>
-                        <option value="FC10T10">FC10T10</option>
-                        <option value="FC9T10">FC9T10</option>
-                        <option value="FC8T10">FC8T10</option>
-                        <option value="FC7T10">FC7T10</option>
-                        <option value="FC6T10以下">FC6T10以下</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">弓兵</label>
-                      <select
-                        value={editingMember.bow_soldier || 'FC6T10以下'}
-                        onChange={(e) => setEditingMember({ ...editingMember, bow_soldier: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        <option value="FC10T11">FC10T11</option>
-                        <option value="FC9T11">FC9T11</option>
-                        <option value="FC8T11">FC8T11</option>
-                        <option value="FC7T11">FC7T11</option>
-                        <option value="FC6T11">FC6T11</option>
-                        <option value="FC5T11">FC5T11</option>
-                        <option value="FC10T10">FC10T10</option>
-                        <option value="FC9T10">FC9T10</option>
-                        <option value="FC8T10">FC8T10</option>
-                        <option value="FC7T10">FC7T10</option>
-                        <option value="FC6T10以下">FC6T10以下</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">移民時期</label>
-                      <select
-                        value={editingMember.transfer || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, transfer: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      >
-                        <option value="">-</option>
-                        {transferOptions.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">総力(移民前) 例: 650M</label>
-                      <input
-                        type="text"
-                        value={editingMember.power_before_migration || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, power_before_migration: e.target.value })}
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      />
-                    </div>
-
-                    <div className="hidden lg:block"></div>
-
-                    <div className="md:col-span-2 lg:col-span-3">
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">元鯖 (カンマ区切り)</label>
-                      <input
-                        type="text"
-                        list="existing-states-list"
-                        value={editingMember.state || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, state: e.target.value })}
-                        placeholder="例: 2352, 2359"
-                        className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      />
-                      <datalist id="existing-states-list">
-                        {existingStateOptions.map((st) => (
-                          <option key={st} value={st} />
-                        ))}
-                      </datalist>
-
-                      {existingStateOptions.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          <span className="text-[10px] text-slate-400 self-center mr-1">クイック追加:</span>
-                          {existingStateOptions.map((st) => {
-                            const currentStates = (editingMember.state || '')
-                              .split(',')
-                              .map((s) => s.trim())
-                              .filter(Boolean);
-                            const isAlreadyAdded = currentStates.includes(st);
-
-                            return (
-                              <button
-                                type="button"
-                                key={st}
-                                onClick={() => {
-                                  if (isAlreadyAdded) return;
-                                  const stateVal = editingMember.state ?? '';
-                                  const updated = currentStates.length > 0
-                                    ? `${stateVal.trim()}, ${st}`
-                                    : st;
-                                  setEditingMember({ ...editingMember, state: updated });
-                                }}
-                                className={`px-2 py-0.5 text-[11px] rounded transition border ${
-                                  isAlreadyAdded
-                                    ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-                                    : 'bg-slate-800 hover:bg-slate-700 text-cyan-300 border-slate-700'
-                                }`}
-                              >
-                                {st} {isAlreadyAdded && '✓'}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
-                    <label className="flex items-center gap-2 cursor-pointer bg-[#0b0f19] p-3 rounded-lg border border-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={!!editingMember.leader}
-                        onChange={(e) => setEditingMember({ ...editingMember, leader: e.target.checked })}
-                        className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0"
-                      />
-                      <span className="text-xs font-semibold text-slate-200">リーダー</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer bg-[#0b0f19] p-3 rounded-lg border border-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={!!editingMember.is_in_2275}
-                        onChange={(e) => setEditingMember({ ...editingMember, is_in_2275: e.target.checked })}
-                        className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0"
-                      />
-                      <span className="text-xs font-semibold text-slate-200">Discord(2275)</span>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">備考</label>
-                    <textarea
-                      rows={3}
-                      value={editingMember.note || ''}
-                      onChange={(e) => setEditingMember({ ...editingMember, note: e.target.value })}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                      placeholder="自由記入欄..."
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setEditingMember(null)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition"
-                    >
-                      キャンセル
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition shadow"
-                    >
-                      保存する
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {isTransferModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-              <div className="bg-[#151c2c] border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                  <h3 className="text-lg font-bold text-white">移民時期の選択肢を追加</h3>
-                  <button
-                    onClick={() => setIsTransferModalOpen(false)}
-                    className="text-slate-400 hover:text-white font-bold"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">移民時期ラベル名</label>
-                    <input
-                      type="text"
-                      placeholder="[30]26/08/16"
-                      value={newTransferLabel}
-                      onChange={(e) => setNewTransferLabel(e.target.value)}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1">すでに登録されている移民時期一覧</label>
-                    <div className="max-h-36 overflow-y-auto bg-[#0b0f19] border border-slate-800 rounded-lg p-2 space-y-1">
-                      {transferOptions.length === 0 ? (
-                        <p className="text-xs text-slate-500 p-1">登録されている時期はありません</p>
-                      ) : (
-                        transferOptions.map((opt) => (
-                          <div key={opt} className="text-xs text-slate-200 px-2 py-1 bg-slate-800/50 rounded">
-                            {opt}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    onClick={() => setIsTransferModalOpen(false)}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs"
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition"
                   >
                     キャンセル
                   </button>
                   <button
-                    onClick={handleAddTransferOption}
-                    className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-medium"
+                    type="submit"
+                    className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition shadow"
                   >
-                    追加する
+                    保存する
                   </button>
                 </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {isTransferModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-[#151c2c] border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 className="text-lg font-bold text-white">移民時期の選択肢を追加</h3>
+                <button
+                  onClick={() => setIsTransferModalOpen(false)}
+                  className="text-slate-400 hover:text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">移民時期ラベル名</label>
+                  <input
+                    type="text"
+                    placeholder="[30]26/08/16"
+                    value={newTransferLabel}
+                    onChange={(e) => setNewTransferLabel(e.target.value)}
+                    className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">すでに登録されている移民時期一覧</label>
+                  <div className="max-h-36 overflow-y-auto bg-[#0b0f19] border border-slate-800 rounded-lg p-2 space-y-1">
+                    {transferOptions.length === 0 ? (
+                      <p className="text-xs text-slate-500 p-1">登録されている時期はありません</p>
+                    ) : (
+                      transferOptions.map((opt) => (
+                        <div key={opt} className="text-xs text-slate-200 px-2 py-1 bg-slate-800/50 rounded">
+                          {opt}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setIsTransferModalOpen(false)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={handleAddTransferOption}
+                  className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-medium"
+                >
+                  追加する
+                </button>
               </div>
             </div>
-          )}
-        </main>
-      </div>
-    </AuthGuard>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
