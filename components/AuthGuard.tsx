@@ -8,16 +8,16 @@ import Navigation from '@/components/Navigation';
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [isChecking, setIsChecking] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
-  
+
   const [gameIdInput, setGameIdInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const verifyAuthAndPermission = async (currentPath: string) => {
+  const checkAuth = async () => {
     try {
       const savedGameId = localStorage.getItem('logged_in_game_id');
       const { data: { session } } = await supabase.auth.getSession();
@@ -26,7 +26,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       if (!savedGameId && !supabaseUser) {
         setIsLoggedIn(false);
         setHasPermission(false);
-        setIsChecking(false);
+        setLoading(false);
         return;
       }
 
@@ -65,7 +65,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         supabase.auth.signOut();
         setIsLoggedIn(false);
         setHasPermission(false);
-        setIsChecking(false);
+        setLoading(false);
         return;
       }
 
@@ -88,7 +88,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
       if (activeRoles.includes('master')) {
         setHasPermission(true);
-        setIsChecking(false);
+        setLoading(false);
         return;
       }
 
@@ -101,34 +101,22 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       const isAllowed = 
         allowedPaths.includes('*') ||
         allowedPaths.some((p) => {
-          if (p === '/') return currentPath === '/';
-          return currentPath === p || currentPath.startsWith(p + '/');
+          if (p === '/') return pathname === '/';
+          return pathname === p || pathname.startsWith(p + '/');
         });
 
       setHasPermission(isAllowed);
     } catch (err) {
-      console.error('権限確認エラー:', err);
+      console.error('認証チェックエラー:', err);
       setIsLoggedIn(false);
       setHasPermission(false);
     } finally {
-      setIsChecking(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    setIsChecking(true);
-    verifyAuthAndPermission(pathname);
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setIsChecking(true);
-        verifyAuthAndPermission(pathname);
-      }
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
+    checkAuth();
   }, [pathname]);
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
@@ -146,15 +134,14 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
       if (error || !data) throw new Error('ゲームIDが見つかりません');
       if (data.status === 'left') throw new Error('このアカウントは退会済みです');
-      if (data.password && data.password !== passwordInput) throw new Error('パスワードが違いです');
+      if (data.password && data.password !== passwordInput) throw new Error('パスワードが違います');
 
       localStorage.setItem('logged_in_game_id', gameIdInput);
-      setIsChecking(true);
       setIsLoggedIn(true);
-      await verifyAuthAndPermission(pathname);
-      setSubmitting(false);
+      await checkAuth();
     } catch (err: any) {
       setErrorMsg(err.message || 'ログインに失敗しました');
+    } finally {
       setSubmitting(false);
     }
   };
@@ -162,23 +149,20 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   const handleDiscordLogin = async () => {
     setErrorMsg('');
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
           redirectTo: `${window.location.origin}/`,
         },
       });
-      if (error) throw error;
     } catch (err: any) {
-      console.error('Discordログインエラー:', err);
       setErrorMsg(err.message || 'Discordログインに失敗しました');
     }
   };
 
-  // 判定が完了するまではローディング画面で完全にブロックし、一瞬のチラツキや404・2重描画を防ぐ
-  if (isChecking) {
+  if (loading) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#0b0f19] text-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
         <p className="text-sm text-slate-400">認証情報を確認中...</p>
       </div>
     );
@@ -257,7 +241,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         <div className="bg-[#151c2c] border border-slate-800 rounded-2xl w-full max-w-md p-8 text-center space-y-4 shadow-2xl">
           <h1 className="text-xl font-bold text-rose-400">アクセス権限がありません</h1>
           <p className="text-sm text-slate-400">
-            このページを閲覧する権限がないか、セッションが無効です。
+            このページを閲覧する権限がないか、ロールの設定を確認してください。
           </p>
           <button
             onClick={() => {
@@ -273,9 +257,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // ログイン済みかつ権限あり：確実に1つのナビゲーションとコンテンツを返す
+  // 合格ライン：Navigationはここで「1つだけ」確実に出力される
   return (
-    <div key={`auth-wrapper-${pathname}`} className="flex flex-col flex-1 w-full">
+    <div className="flex flex-col flex-1 w-full min-h-screen">
       <Navigation />
       {children}
     </div>
