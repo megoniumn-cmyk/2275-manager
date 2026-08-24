@@ -1223,7 +1223,6 @@ export default function MembersPage() {
                           setEditingMember({
                             ...editingMember,
                             status: newStatus,
-                            // もしアクティブに戻した場合はdiscord_checkedをリセットするかなど考慮。必要に応じ保持
                           });
                         }}
                         className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"

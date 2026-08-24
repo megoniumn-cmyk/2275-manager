@@ -379,11 +379,3 @@ function RolesContent() {
     </div>
   );
 }
-
-export default function RolesPage() {
-  return (
-    <AuthGuard>
-      <RolesContent />
-    </AuthGuard>
-  );
-}

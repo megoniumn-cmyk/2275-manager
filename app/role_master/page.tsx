@@ -222,11 +222,3 @@ function RoleMasterContent() {
     </div>
   );
 }
-
-export default function RoleMasterPage() {
-  return (
-    <AuthGuard>
-      <RoleMasterContent />
-    </AuthGuard>
-  );
-}
