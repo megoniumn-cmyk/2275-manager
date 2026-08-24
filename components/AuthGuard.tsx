@@ -3,6 +3,7 @@
 
 import { useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+import Navigation from '@/components/Navigation'; // Navigationをここで読み込む
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -136,11 +137,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
       if (error || !data) throw new Error('ゲームIDが見つかりません');
       if (data.status === 'left') throw new Error('このアカウントは退会済みです');
-      if (data.password && data.password !== passwordInput) throw new Error('パスワードが違います');
+      if (data.password && data.password !== passwordInput) throw new Error('パスワードが違いです');
 
       localStorage.setItem('logged_in_game_id', gameIdInput);
-      
-      // リロードせず直接状態を更新してダッシュボードを表示する（1回目リロード問題を解消）
       setIsLoggedIn(true);
       await verifyAuthAndPermission();
       setSubmitting(false);
@@ -159,7 +158,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     setPasswordInput('');
   };
 
-  // Discordログインをリダイレクト専用の通常リンク（または確実な遷移）に変更
   const handleDiscordLogin = async () => {
     setErrorMsg('');
     try {
@@ -274,5 +272,11 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  // ★ ここ（ログイン済み & 権限あり の合格ライン）にのみ Navigation を配置する
+  return (
+    <>
+      <Navigation />
+      {children}
+    </>
+  );
 }
