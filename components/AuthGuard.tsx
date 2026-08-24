@@ -19,7 +19,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
   const checkAuth = async (currentPath: string) => {
     try {
-      // 万が一 /login というURLに迷い込んだら、強制的にトップ（/）に逃がす
       if (currentPath === '/login' || currentPath.startsWith('/login/')) {
         window.location.replace('/');
         return;
@@ -122,6 +121,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    setLoading(true);
     checkAuth(pathname);
   }, [pathname]);
 
@@ -143,11 +143,11 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       if (data.password && data.password !== passwordInput) throw new Error('パスワードが違います');
 
       localStorage.setItem('logged_in_game_id', gameIdInput);
-      setIsLoggedIn(true);
       setLoading(true);
       await checkAuth(window.location.pathname);
     } catch (err: any) {
       setErrorMsg(err.message || 'ログインに失敗しました');
+      setLoading(false);
     } finally {
       setSubmitting(false);
     }
@@ -167,6 +167,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
   };
 
+  // 1. ロード中の画面（メニューなし）
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
@@ -175,6 +176,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
+  // 2. 未ログイン状態の画面（メニューなし）
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center p-4">
@@ -242,6 +244,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
+  // 3. 権限がない、または退会済み状態の画面（メニューなし）
   if (!hasPermission) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center p-4">
@@ -253,6 +256,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
           <button
             onClick={() => {
               localStorage.removeItem('logged_in_game_id');
+              supabase.auth.signOut();
               window.location.href = '/';
             }}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition cursor-pointer"
@@ -264,7 +268,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // 合格ライン：Navigationはここで「1つだけ」確実に出力される
+  // 4. 【完全な合格ライン】ログイン済み 且つ 権限あり の場合のみ、メニューバーを「1つだけ」表示してコンテンツを描画
   return (
     <div className="flex flex-col flex-1 w-full min-h-screen">
       <Navigation />
