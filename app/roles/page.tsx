@@ -3,7 +3,6 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import AuthGuard from '@/components/AuthGuard';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,7 +44,7 @@ const ROLE_LIST: RoleMeta[] = [
   { key: 'is_priority_reserve', label: '官職優先予約者' },
 ];
 
-function RolesContent() {
+export default function RolesPage() {
   const [profiles, setProfiles] = useState<ProfileItem[]>([]);
   const [loading, setLoading] = useState(true);
 
