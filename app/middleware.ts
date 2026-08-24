@@ -1,36 +1,42 @@
-// middleware.ts
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
-  const { data: { session } } = await supabase.auth.getSession();
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
 
-  const isLoginPage = req.nextUrl.pathname.startsWith('/login');
-
-  // 1. ログインしていない場合 -> ログイン画面へ
-  if (!session && !isLoginPage) {
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
-
-  // 2. ログインしている場合 -> web_active チェック
-  if (session) {
-    const { data: member } = await supabase
-      .from('members')
-      .select('web_active')
-      .eq('game_id', session.user.user_metadata.game_id) // 認証方法に合わせる
-      .single();
-
-    if (member && !member.web_active && req.nextUrl.pathname !== '/unauthorized') {
-      return NextResponse.redirect(new URL('/unauthorized', req.url));
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          response = NextResponse.next({
+            request,
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
     }
-  }
+  )
 
-  return res;
+  // 認証セッションの更新
+  await supabase.auth.getUser()
+
+  return response
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
-};
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
