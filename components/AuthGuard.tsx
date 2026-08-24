@@ -17,8 +17,14 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const checkAuth = async () => {
+  const checkAuth = async (currentPath: string) => {
     try {
+      // 万が一 /login というURLに迷い込んだら、強制的にトップ（/）に逃がす
+      if (currentPath === '/login' || currentPath.startsWith('/login/')) {
+        window.location.replace('/');
+        return;
+      }
+
       const savedGameId = localStorage.getItem('logged_in_game_id');
       const { data: { session } } = await supabase.auth.getSession();
       const supabaseUser = session?.user || null;
@@ -101,8 +107,8 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       const isAllowed = 
         allowedPaths.includes('*') ||
         allowedPaths.some((p) => {
-          if (p === '/') return pathname === '/';
-          return pathname === p || pathname.startsWith(p + '/');
+          if (p === '/') return currentPath === '/';
+          return currentPath === p || currentPath.startsWith(p + '/');
         });
 
       setHasPermission(isAllowed);
@@ -116,7 +122,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    checkAuth();
+    checkAuth(pathname);
   }, [pathname]);
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
@@ -138,7 +144,8 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
       localStorage.setItem('logged_in_game_id', gameIdInput);
       setIsLoggedIn(true);
-      await checkAuth();
+      setLoading(true);
+      await checkAuth(window.location.pathname);
     } catch (err: any) {
       setErrorMsg(err.message || 'ログインに失敗しました');
     } finally {
