@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabase';
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [userRoles, setUserRoles] = useState<string[]>(['member']);
   const [gameIdInput, setGameIdInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -26,7 +25,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       }
 
       setIsLoggedIn(true);
-
       let profileData = null;
 
       if (savedGameId) {
@@ -38,7 +36,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         profileData = data;
       } else if (supabaseUser) {
         const providerId = supabaseUser.user_metadata?.sub || supabaseUser.identities?.[0]?.id;
-
         if (providerId) {
           const { data } = await supabase
             .from('profiles')
@@ -47,7 +44,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
             .single();
           profileData = data;
         }
-
         if (!profileData) {
           const { data } = await supabase
             .from('profiles')
@@ -70,7 +66,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         localStorage.setItem('logged_in_game_id', profileData.game_id);
       }
 
-      const activeRoles: string[] = [];
+      const activeRoles: string[] = ['member'];
       if (profileData) {
         if (profileData.is_master) activeRoles.push('master');
         if (profileData.is_admin) activeRoles.push('admin');
@@ -78,17 +74,10 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         if (profileData.is_transfer) activeRoles.push('transfer');
         if (profileData.is_member_manager) activeRoles.push('member_manager');
         if (profileData.is_reserve_master) activeRoles.push('reserve_master');
-        if (profileData.is_member) activeRoles.push('member');
         if (profileData.is_r4) activeRoles.push('r4');
         if (profileData.is_gen_manage) activeRoles.push('gen_manage');
         if (profileData.is_priority_reserve) activeRoles.push('priority_reserve');
       }
-
-      if (activeRoles.length === 0) {
-        activeRoles.push('member');
-      }
-
-      setUserRoles(activeRoles);
 
       if (activeRoles.includes('master')) {
         setHasPermission(true);
@@ -96,31 +85,16 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       }
 
       const currentPath = window.location.pathname;
-
       const { data: rolePerms } = await supabase
         .from('role_permissions')
         .select('path')
         .in('web_role', activeRoles);
 
       const allowedPaths = rolePerms?.map((p) => p.path) || [];
-
-      let memberPaths: string[] = [];
-      if (!activeRoles.includes('member')) {
-        const { data: memberPerms } = await supabase
-          .from('role_permissions')
-          .select('path')
-          .eq('web_role', 'member');
-        memberPaths = memberPerms?.map((p) => p.path) || [];
-      }
-
-      const allAllowed = Array.from(new Set([...allowedPaths, ...memberPaths]));
-      
       const isAllowed = 
-        allAllowed.includes('*') ||
-        allAllowed.some((p) => {
-          if (p === '/') {
-            return currentPath === '/';
-          }
+        allowedPaths.includes('*') ||
+        allowedPaths.some((p) => {
+          if (p === '/') return currentPath === '/';
           return currentPath === p || currentPath.startsWith(p + '/');
         });
 
@@ -135,16 +109,10 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     verifyAuthAndPermission();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
         setIsLoggedIn(true);
-        const redirectPath = localStorage.getItem('redirect_after_login');
-        if (redirectPath && redirectPath !== '/') {
-          localStorage.removeItem('redirect_after_login');
-          window.location.href = redirectPath;
-        } else {
-          window.location.reload();
-        }
+        verifyAuthAndPermission();
       }
     });
 
@@ -166,23 +134,16 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         .eq('game_id', gameIdInput)
         .single();
 
-      if (error || !data) {
-        throw new Error('ゲームIDが見つかりません');
-      }
+      if (error || !data) throw new Error('ゲームIDが見つかりません');
+      if (data.status === 'left') throw new Error('このアカウントは退会済みです');
+      if (data.password && data.password !== passwordInput) throw new Error('パスワードが違います');
 
-      if (data.status === 'left') {
-        throw new Error('このアカウントは退会済みのためログインできません');
-      }
-
-      if (data.password && data.password !== passwordInput) {
-        throw new Error('パスワードが違います');
-      }
-
-      // ストレージに確実に保存してから少し待ってリロード
       localStorage.setItem('logged_in_game_id', gameIdInput);
-      setTimeout(() => {
-        window.location.reload();
-      }, 100);
+      
+      // リロードせず直接状態を更新してダッシュボードを表示する（1回目リロード問題を解消）
+      setIsLoggedIn(true);
+      await verifyAuthAndPermission();
+      setSubmitting(false);
     } catch (err: any) {
       setErrorMsg(err.message || 'ログインに失敗しました');
       setSubmitting(false);
@@ -191,7 +152,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
   const handleLogout = () => {
     localStorage.removeItem('logged_in_game_id');
-    localStorage.removeItem('redirect_after_login');
     supabase.auth.signOut();
     setIsLoggedIn(false);
     setHasPermission(false);
@@ -199,21 +159,16 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     setPasswordInput('');
   };
 
+  // Discordログインをリダイレクト専用の通常リンク（または確実な遷移）に変更
   const handleDiscordLogin = async () => {
     setErrorMsg('');
     try {
-      const currentPath = window.location.pathname + window.location.search;
-      localStorage.setItem('redirect_after_login', currentPath);
-
-      // ポップアップブロックを回避するためリダイレクト方式に変更
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
-          redirectTo: window.location.origin,
-          skipBrowserRedirect: false,
+          redirectTo: `${window.location.origin}/`,
         },
       });
-
       if (error) throw error;
     } catch (err: any) {
       console.error('Discordログインエラー:', err);
@@ -236,7 +191,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
           <h1 className="text-xl font-bold text-center text-white">ログイン</h1>
 
           {errorMsg && (
-            <div className="bg-rose-500/20 border border-rose-500/50 text-rose-300 p-3 rounded-lg text-xs break-all">
+            <div className="bg-rose-500/25 border border-rose-500/50 text-rose-300 p-3 rounded-lg text-xs break-all">
               {errorMsg}
             </div>
           )}
@@ -297,25 +252,22 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (hasPermission === false) {
-    // 権限がない場合は自動でログアウト処理を走らせてログイン画面に戻す
     localStorage.removeItem('logged_in_game_id');
-    supabase.auth.signOut();
-
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center p-4">
         <div className="bg-[#151c2c] border border-slate-800 rounded-2xl w-full max-w-md p-8 text-center space-y-4 shadow-2xl">
           <h1 className="text-xl font-bold text-rose-400">アクセス権限がありません</h1>
           <p className="text-sm text-slate-400">
-            権限がないかセッションが無効です。ログイン画面に戻ります。
+            このページを閲覧する権限がないか、セッションが無効です。
           </p>
           <button
             onClick={() => {
               localStorage.clear();
               window.location.href = '/';
             }}
-            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm transition cursor-pointer"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition cursor-pointer"
           >
-            ログイン画面へ
+            ログイン画面へ戻る
           </button>
         </div>
       </div>
