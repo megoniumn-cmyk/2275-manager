@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
-import { useAuth } from '@/components/AuthContext'; // AuthContextを利用
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,24 +19,26 @@ interface PageItem {
   manage: boolean;
 }
 
-export default function Navigation() {
+// 親（AuthGuard）からロールを直接受け取るように変更
+interface NavigationProps {
+  userRole?: string; // 例: 'master', 'admin', 'strategy' など
+}
+
+export default function Navigation({ userRole = 'member' }: NavigationProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, refreshAuth } = useAuth(); // AuthContextから最新のロールと更新関数を取得
   
   const [pages, setPages] = useState<PageItem[]>([]);
   const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
   const [isMasterUser, setIsMasterUser] = useState(false);
   const [roleDisplay, setRoleDisplay] = useState<string>('MEMBER');
 
-  // ロールが変更されたり、ページが移動したタイミングでメニューのアクセス権を再計算
   useEffect(() => {
     const fetchPermissions = async () => {
       try {
-        const currentRole = role ? role.toLowerCase() : 'member';
-        const isMaster = currentRole === 'master' || currentRole === 'admin'; // 必要に応じて調整
+        const currentRole = userRole ? userRole.toLowerCase() : 'member';
+        const isMaster = currentRole === 'master' || currentRole === 'admin';
         
-        // マスター判定とロール表示名の設定
         setIsMasterUser(currentRole === 'master');
         
         const roleMap: { [key: string]: string } = {
@@ -54,7 +55,6 @@ export default function Navigation() {
         };
         setRoleDisplay(roleMap[currentRole] || 'MEMBER');
 
-        // 権限パスの取得
         if (currentRole === 'master') {
           setAllowedPaths(['*']);
         } else {
@@ -70,7 +70,6 @@ export default function Navigation() {
           }
         }
 
-        // ページ一覧の取得
         const { data: pageData } = await supabase
           .from('page_list')
           .select('*')
@@ -86,14 +85,13 @@ export default function Navigation() {
     };
 
     fetchPermissions();
-  }, [role, pathname]);
+  }, [userRole, pathname]);
 
   const handleLogout = async () => {
     localStorage.removeItem('logged_in_game_id');
     localStorage.removeItem('redirect_after_login');
     await supabase.auth.signOut();
-    await refreshAuth(); // 認証状態をクリア
-    router.push('/login');
+    window.location.href = '/';
   };
 
   return (

@@ -11,6 +11,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [userRoleForNav, setUserRoleForNav] = useState('member');
 
   const [gameIdInput, setGameIdInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
@@ -78,18 +79,23 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         localStorage.setItem('logged_in_game_id', profileData.game_id);
       }
 
+      // ロールの判定と最も強いロールの選定
       const activeRoles: string[] = ['member'];
+      let determinedRole = 'member';
+
       if (profileData) {
-        if (profileData.is_master) activeRoles.push('master');
-        if (profileData.is_admin) activeRoles.push('admin');
-        if (profileData.is_strategy) activeRoles.push('strategy');
-        if (profileData.is_transfer) activeRoles.push('transfer');
-        if (profileData.is_member_manager) activeRoles.push('member_manager');
-        if (profileData.is_reserve_master) activeRoles.push('reserve_master');
-        if (profileData.is_r4) activeRoles.push('r4');
-        if (profileData.is_gen_manage) activeRoles.push('gen_manage');
-        if (profileData.is_priority_reserve) activeRoles.push('priority_reserve');
+        if (profileData.is_master) { activeRoles.push('master'); determinedRole = 'master'; }
+        else if (profileData.is_admin) { activeRoles.push('admin'); determinedRole = 'admin'; }
+        else if (profileData.is_strategy) { activeRoles.push('strategy'); determinedRole = 'strategy'; }
+        else if (profileData.is_transfer) { activeRoles.push('transfer'); determinedRole = 'transfer'; }
+        else if (profileData.is_member_manager) { activeRoles.push('member_manager'); determinedRole = 'member_manager'; }
+        else if (profileData.is_reserve_master) { activeRoles.push('reserve_master'); determinedRole = 'reserve_master'; }
+        else if (profileData.is_r4) { activeRoles.push('r4'); determinedRole = 'r4'; }
+        else if (profileData.is_gen_manage) { activeRoles.push('gen_manage'); determinedRole = 'gen_manage'; }
+        else if (profileData.is_priority_reserve) { activeRoles.push('priority_reserve'); determinedRole = 'priority_reserve'; }
       }
+
+      setUserRoleForNav(determinedRole);
 
       if (activeRoles.includes('master')) {
         setHasPermission(true);
@@ -167,7 +173,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
   };
 
-  // 1. ロード中の画面（メニューなし）
+  // 1. ローディング中の画面（メニューなし）
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
@@ -268,10 +274,10 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // 4. 【完全な合格ライン】ログイン済み 且つ 権限あり の場合のみ、メニューバーを「1つだけ」表示してコンテンツを描画
+  // 4. 【合格ライン】ログイン済み 且つ 権限ありの場合のみ、正しいロールを渡して Navigation を「1つだけ」表示
   return (
     <div className="flex flex-col flex-1 w-full min-h-screen">
-      <Navigation />
+      <Navigation userRole={userRoleForNav} />
       {children}
     </div>
   );
