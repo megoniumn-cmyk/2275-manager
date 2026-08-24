@@ -1,6 +1,6 @@
 // app/layout.tsx
 import { AuthProvider } from '@/components/AuthContext';
-import Navigation from '@/components/Navigation';
+import AuthGuard from '@/components/AuthGuard';
 import './globals.css';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -8,10 +8,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja">
       <body className="bg-[#0b0f19] text-slate-100 min-h-screen flex flex-col">
         <AuthProvider>
-          <Navigation />
-          <main className="flex-1 flex flex-col">
-            {children}
-          </main>
+          <AuthGuard>
+            <main className="flex-1 flex flex-col">
+              {children}
+            </main>
+          </AuthGuard>
         </AuthProvider>
       </body>
     </html>
