@@ -3,7 +3,7 @@
 
 import { useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
-import Navigation from '@/components/Navigation'; // Navigationをここで読み込む
+import Navigation from '@/components/Navigation';
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -149,15 +149,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('logged_in_game_id');
-    supabase.auth.signOut();
-    setIsLoggedIn(false);
-    setHasPermission(false);
-    setGameIdInput('');
-    setPasswordInput('');
-  };
-
   const handleDiscordLogin = async () => {
     setErrorMsg('');
     try {
@@ -272,11 +263,11 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // ★ ここ（ログイン済み & 権限あり の合格ライン）にのみ Navigation を配置する
+  // ログイン済みかつ権限あり：確実にコンテナを1つに固定して二重レンダリングを防ぐ
   return (
-    <>
+    <div key="auth-guard-wrapper" className="flex flex-col flex-1 w-full">
       <Navigation />
       {children}
-    </>
+    </div>
   );
 }
