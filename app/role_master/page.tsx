@@ -222,3 +222,6 @@ function RoleMasterContent() {
     </div>
   );
 }
+
+// ⭕️ これが必須でした！
+export default RoleMasterContent;
