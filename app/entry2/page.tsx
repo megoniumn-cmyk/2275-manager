@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import Navigation from '@/components/Navigation';
 
 // Supabaseクライアントの初期化（環境変数を使用）
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -745,7 +744,6 @@ export default function EntryPage() {
 
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100">
-      <Navigation />
 
       <div className="max-w-[1920px] mx-auto px-6 py-6 space-y-6">
         {/* ヘッダー・操作ボタン */}

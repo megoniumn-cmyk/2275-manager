@@ -1,13 +1,11 @@
 // app/coming-soon/page.tsx
 'use client';
 
-import Navigation from '@/components/Navigation';
 
 export default function ComingSoonPage() {
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 font-sans flex flex-col">
       {/* 共通のナビゲーションを表示 */}
-      <Navigation />
 
       {/* メインコンテンツエリア */}
       <main className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
