@@ -2,18 +2,22 @@
 'use client';
 
 import { useState, useEffect, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Navigation from '@/components/Navigation';
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const pathname = usePathname();
+  const [isChecking, setIsChecking] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [hasPermission, setHasPermission] = useState(false);
+  
   const [gameIdInput, setGameIdInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const verifyAuthAndPermission = async () => {
+  const verifyAuthAndPermission = async (currentPath: string) => {
     try {
       const savedGameId = localStorage.getItem('logged_in_game_id');
       const { data: { session } } = await supabase.auth.getSession();
@@ -22,6 +26,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       if (!savedGameId && !supabaseUser) {
         setIsLoggedIn(false);
         setHasPermission(false);
+        setIsChecking(false);
         return;
       }
 
@@ -60,6 +65,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         supabase.auth.signOut();
         setIsLoggedIn(false);
         setHasPermission(false);
+        setIsChecking(false);
         return;
       }
 
@@ -82,10 +88,10 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
       if (activeRoles.includes('master')) {
         setHasPermission(true);
+        setIsChecking(false);
         return;
       }
 
-      const currentPath = window.location.pathname;
       const { data: rolePerms } = await supabase
         .from('role_permissions')
         .select('path')
@@ -104,23 +110,26 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       console.error('権限確認エラー:', err);
       setIsLoggedIn(false);
       setHasPermission(false);
+    } finally {
+      setIsChecking(false);
     }
   };
 
   useEffect(() => {
-    verifyAuthAndPermission();
+    setIsChecking(true);
+    verifyAuthAndPermission(pathname);
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        setIsLoggedIn(true);
-        verifyAuthAndPermission();
+        setIsChecking(true);
+        verifyAuthAndPermission(pathname);
       }
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [pathname]);
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,8 +149,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       if (data.password && data.password !== passwordInput) throw new Error('パスワードが違いです');
 
       localStorage.setItem('logged_in_game_id', gameIdInput);
+      setIsChecking(true);
       setIsLoggedIn(true);
-      await verifyAuthAndPermission();
+      await verifyAuthAndPermission(pathname);
       setSubmitting(false);
     } catch (err: any) {
       setErrorMsg(err.message || 'ログインに失敗しました');
@@ -165,7 +175,8 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
   };
 
-  if (isLoggedIn === null || (isLoggedIn && hasPermission === null)) {
+  // 判定が完了するまではローディング画面で完全にブロックし、一瞬のチラツキや404・2重描画を防ぐ
+  if (isChecking) {
     return (
       <div className="fixed inset-0 z-50 bg-[#0b0f19] text-slate-100 flex items-center justify-center">
         <p className="text-sm text-slate-400">認証情報を確認中...</p>
@@ -240,8 +251,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  if (hasPermission === false) {
-    localStorage.removeItem('logged_in_game_id');
+  if (!hasPermission) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center p-4">
         <div className="bg-[#151c2c] border border-slate-800 rounded-2xl w-full max-w-md p-8 text-center space-y-4 shadow-2xl">
@@ -251,7 +261,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
           </p>
           <button
             onClick={() => {
-              localStorage.clear();
+              localStorage.removeItem('logged_in_game_id');
               window.location.href = '/';
             }}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition cursor-pointer"
@@ -263,9 +273,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // ログイン済みかつ権限あり：確実にコンテナを1つに固定して二重レンダリングを防ぐ
+  // ログイン済みかつ権限あり：確実に1つのナビゲーションとコンテンツを返す
   return (
-    <div key="auth-guard-wrapper" className="flex flex-col flex-1 w-full">
+    <div key={`auth-wrapper-${pathname}`} className="flex flex-col flex-1 w-full">
       <Navigation />
       {children}
     </div>
