@@ -15,11 +15,11 @@ export interface Member {
   game_id?: string;
   main_game_id?: string;
   alliance?: string | null;
-  rank_role?: string;
-  fc_level?: string;
-  shield_soldier?: string;
-  spear_soldier?: string;
-  bow_soldier?: string;
+  rank_role?: string | null;
+  fc_level?: string | null;
+  shield_soldier?: string | null;
+  spear_soldier?: string | null;
+  bow_soldier?: string | null;
   leader?: boolean;
   power_before_migration?: string;
   current_power?: string;
@@ -81,7 +81,6 @@ const EXCLUDE_DISCORD_IDS = [
   '1154813675803263076',
 ];
 
-// ★ 追加: どんな型や文字列で入っていても安全に真偽値を判定する厳密なパーサー
 const parseBoolean = (val: any): boolean => {
   if (val === true || val === 1 || val === '1') return true;
   if (typeof val === 'string') {
@@ -134,7 +133,6 @@ export default function MembersPage() {
       .order('rank_role', { ascending: true });
     
     if (memberData) {
-      // ★ 厳密な parseBoolean を使って安全に正規化
       const normalized = memberData.map((m) => ({
         ...m,
         is_in_2275: parseBoolean(m.is_in_2275),
@@ -227,7 +225,7 @@ export default function MembersPage() {
       return member.is_hidden ? '制限' : '許可';
     }
     if (key === 'updated_at') {
-      if (!member.updated_at) return '未設定/空欄';
+      if (!member.updated_at) return '-';
       const d = new Date(member.updated_at);
       if (isNaN(d.getTime())) return String(member.updated_at);
       const yyyy = d.getFullYear();
@@ -236,7 +234,7 @@ export default function MembersPage() {
       return `${yyyy}/${mm}/${dd}`;
     }
     const val = member[key as keyof Member];
-    if (val === null || val === undefined || val === '') return '未設定/空欄';
+    if (val === null || val === undefined || val === '' || val === '未設定/空欄') return '-';
     return String(val);
   };
 
@@ -258,7 +256,7 @@ export default function MembersPage() {
         }
       });
       const sorted = Array.from(options).sort((a, b) => a.localeCompare(b, 'ja', { numeric: true }));
-      if (hasEmpty) sorted.push('未設定/空欄');
+      if (hasEmpty) sorted.push('-');
       return sorted;
     }
 
@@ -292,7 +290,7 @@ export default function MembersPage() {
           result = result.filter((m) => {
             const memberStates = m.state ? m.state.split(',').map((s) => s.trim()) : [];
             const isUnset = memberStates.length === 0;
-            if (selectedValues.includes('未設定/空欄') && isUnset) return true;
+            if (selectedValues.includes('-') && isUnset) return true;
             return selectedValues.some((val) => memberStates.includes(val));
           });
         } else {
@@ -321,8 +319,8 @@ export default function MembersPage() {
         sortKey === 'updated_at' ? getMemberValue(b, 'updated_at') :
         b[sortKey as keyof Member];
 
-      if (aVal === null || aVal === undefined || aVal === '') return 1;
-      if (bVal === null || bVal === undefined || bVal === '') return -1;
+      if (aVal === null || aVal === undefined || aVal === '' || aVal === '-') return 1;
+      if (bVal === null || bVal === undefined || bVal === '' || bVal === '-') return -1;
 
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
@@ -405,6 +403,12 @@ export default function MembersPage() {
     const payloadToSave = {
       ...editingMember,
       transfer: editingMember.transfer === '' ? null : editingMember.transfer,
+      alliance: editingMember.alliance === '' ? null : editingMember.alliance,
+      rank_role: editingMember.rank_role === '' ? null : editingMember.rank_role,
+      fc_level: editingMember.fc_level === '' ? null : editingMember.fc_level,
+      shield_soldier: editingMember.shield_soldier === '' ? null : editingMember.shield_soldier,
+      spear_soldier: editingMember.spear_soldier === '' ? null : editingMember.spear_soldier,
+      bow_soldier: editingMember.bow_soldier === '' ? null : editingMember.bow_soldier,
       is_in_2275: parseBoolean(editingMember.is_in_2275),
       leader: parseBoolean(editingMember.leader),
       discord_checked: parseBoolean(editingMember.discord_checked),
@@ -644,7 +648,7 @@ export default function MembersPage() {
         const rowData: any = {};
         headers.forEach((header, index) => {
           let val: any = values[index] ?? null;
-          if (val === '' || val === '未設定' || val === '未設定/空欄' || val === 'nan') {
+          if (val === '' || val === '未設定' || val === '未設定/空欄' || val === 'nan' || val === '-') {
             val = null;
           }
           if (header === 'leader' || header === 'is_in_2275' || header === 'discord_checked') {
@@ -864,16 +868,16 @@ export default function MembersPage() {
                 setEditingMember({
                   discord_id: `temp_${Math.random().toString(36).substring(2, 11)}`,
                   name: '',
-                  rank_role: 'R1',
+                  rank_role: '',
                   alliance: '',
-                  fc_level: 'FC6 以下',
+                  fc_level: '',
                   planet: 1,
                   leader: false,
                   game_id: '',
                   main_game_id: '',
-                  shield_soldier: 'FC6T10以下',
-                  spear_soldier: 'FC6T10以下',
-                  bow_soldier: 'FC6T10以下',
+                  shield_soldier: '',
+                  spear_soldier: '',
+                  bow_soldier: '',
                   power_before_migration: '',
                   current_power: '',
                   transfer: '',
@@ -971,7 +975,7 @@ export default function MembersPage() {
             <tbody className="divide-y divide-slate-800 whitespace-nowrap">
               {processedMembers.map((member) => {
                 const isLeft = member.status === 'left';
-                const isIn2275 = parseBoolean(member.is_in_2275); // 念のためここでも安全に判定
+                const isIn2275 = parseBoolean(member.is_in_2275);
                 return (
                   <tr key={member.discord_id || member.game_id} className="hover:bg-slate-800/50 transition">
                     <td className="p-3 text-center sticky left-0 z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-16 min-w-[64px]">
@@ -1104,7 +1108,7 @@ export default function MembersPage() {
                           <div className="text-sm font-bold text-white flex items-center gap-2">
                             <span>{m.name}</span>
                             <span className="text-xs text-indigo-400 bg-indigo-950/50 px-2 py-0.5 rounded">
-                              {m.alliance || '同盟なし'}
+                              {m.alliance || '-'}
                             </span>
                           </div>
                           <div className="text-xs text-slate-400 flex gap-3 mt-1">
@@ -1230,13 +1234,15 @@ export default function MembersPage() {
                     </select>
                   </div>
 
+                  {/* Role */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">Role</label>
                     <select
-                      value={editingMember.rank_role || 'R1'}
-                      onChange={(e) => setEditingMember({ ...editingMember, rank_role: e.target.value })}
+                      value={editingMember.rank_role || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, rank_role: e.target.value === '' ? null : e.target.value })}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
+                      <option value="">-</option>
                       <option value="R4以上">R4以上</option>
                       <option value="R3">R3</option>
                       <option value="R2">R2</option>
@@ -1262,13 +1268,15 @@ export default function MembersPage() {
                     </select>
                   </div>
 
+                  {/* FC */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">FC</label>
                     <select
-                      value={editingMember.fc_level || 'FC6 以下'}
-                      onChange={(e) => setEditingMember({ ...editingMember, fc_level: e.target.value })}
+                      value={editingMember.fc_level || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, fc_level: e.target.value === '' ? null : e.target.value })}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
+                      <option value="">-</option>
                       <option value="FC10">FC10</option>
                       <option value="FC9">FC9</option>
                       <option value="FC8">FC8</option>
@@ -1289,13 +1297,15 @@ export default function MembersPage() {
 
                   <div className="hidden lg:block"></div>
 
+                  {/* 盾兵 */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">盾兵</label>
                     <select
-                      value={editingMember.shield_soldier || 'FC6T10以下'}
-                      onChange={(e) => setEditingMember({ ...editingMember, shield_soldier: e.target.value })}
+                      value={editingMember.shield_soldier || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, shield_soldier: e.target.value === '' ? null : e.target.value })}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
+                      <option value="">-</option>
                       <option value="FC10T11">FC10T11</option>
                       <option value="FC9T11">FC9T11</option>
                       <option value="FC8T11">FC8T11</option>
@@ -1310,13 +1320,15 @@ export default function MembersPage() {
                     </select>
                   </div>
 
+                  {/* 槍兵 */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">槍兵</label>
                     <select
-                      value={editingMember.spear_soldier || 'FC6T10以下'}
-                      onChange={(e) => setEditingMember({ ...editingMember, spear_soldier: e.target.value })}
+                      value={editingMember.spear_soldier || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, spear_soldier: e.target.value === '' ? null : e.target.value })}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
+                      <option value="">-</option>
                       <option value="FC10T11">FC10T11</option>
                       <option value="FC9T11">FC9T11</option>
                       <option value="FC8T11">FC8T11</option>
@@ -1331,13 +1343,15 @@ export default function MembersPage() {
                     </select>
                   </div>
 
+                  {/* 弓兵 */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">弓兵</label>
                     <select
-                      value={editingMember.bow_soldier || 'FC6T10以下'}
-                      onChange={(e) => setEditingMember({ ...editingMember, bow_soldier: e.target.value })}
+                      value={editingMember.bow_soldier || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, bow_soldier: e.target.value === '' ? null : e.target.value })}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
+                      <option value="">-</option>
                       <option value="FC10T11">FC10T11</option>
                       <option value="FC9T11">FC9T11</option>
                       <option value="FC8T11">FC8T11</option>
@@ -1356,7 +1370,7 @@ export default function MembersPage() {
                     <label className="block text-xs font-semibold text-slate-300 mb-1">移民時期</label>
                     <select
                       value={editingMember.transfer || ''}
-                      onChange={(e) => setEditingMember({ ...editingMember, transfer: e.target.value })}
+                      onChange={(e) => setEditingMember({ ...editingMember, transfer: e.target.value === '' ? null : e.target.value })}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
                       <option value="">-</option>
