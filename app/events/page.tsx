@@ -513,6 +513,7 @@ export default function EventsPage() {
       const eventHeaders = headers.slice(3);
 
       let processedCount = 0;
+      let skippedCount = 0;
 
       for (let i = 1; i < lines.length; i++) {
         const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
@@ -522,17 +523,29 @@ export default function EventsPage() {
         for (let j = 0; j < eventHeaders.length; j++) {
           const colIndex = 3 + j;
           if (row[colIndex] !== undefined) {
-            const status = row[colIndex].replace(/^"|"$/g, '').trim();
+            const newStatus = row[colIndex].replace(/^"|"$/g, '').trim();
             if (events[j]) {
               const targetEventId = events[j].id;
-              await handleStatusChange(targetEventId, gameId, status);
-              processedCount++;
+
+              // 既存の参加ステータスをチェック
+              const existingPart = participations.find(
+                (p) => p.event_id === targetEventId && String(p.member_game_id).trim() === String(gameId).trim()
+              );
+              const currentStatus = existingPart ? existingPart.status : '-';
+
+              // データベース上のステータスとCSVの値が異なる場合のみ更新（差分のみ）
+              if (currentStatus !== newStatus) {
+                await handleStatusChange(targetEventId, gameId, newStatus);
+                processedCount++;
+              } else {
+                skippedCount++;
+              }
             }
           }
         }
       }
 
-      alert(`CSVインポートが完了しました（処理件数: ${processedCount}件）`);
+      alert(`CSVインポートが完了しました\n（更新: ${processedCount}件 / 変更なしスキップ: ${skippedCount}件）`);
       fetchData();
       if (csvFileInputRef.current) csvFileInputRef.current.value = '';
     };
