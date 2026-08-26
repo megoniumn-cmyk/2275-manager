@@ -29,7 +29,7 @@ export interface Member {
   is_hidden?: boolean;
   is_in_2275?: boolean;
   info_sharing?: boolean;
-  discord_checked?: boolean; // ★ 追加: Discord側確認フラグ
+  discord_checked?: boolean;
   note?: string;
   updated_at?: string;
   planet?: number;
@@ -51,6 +51,7 @@ export interface Member {
 }
 
 export type SortKey =
+  | 'work_checked_str'
   | 'name'
   | 'game_id'
   | 'main_game_id_name'
@@ -80,6 +81,18 @@ const EXCLUDE_DISCORD_IDS = [
   '1154813675803263076',
 ];
 
+// ★ 追加: どんな型や文字列で入っていても安全に真偽値を判定する厳密なパーサー
+const parseBoolean = (val: any): boolean => {
+  if (val === true || val === 1 || val === '1') return true;
+  if (typeof val === 'string') {
+    const lower = val.trim().toLowerCase();
+    if (lower === 'true' || lower === 't' || lower === 'yes' || lower === 'y' || lower === '○' || lower === '〇') {
+      return true;
+    }
+  }
+  return false;
+};
+
 export default function MembersPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -92,7 +105,6 @@ export default function MembersPage() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [newTransferLabel, setNewTransferLabel] = useState('');
 
-  // ★ 追加: Discord未確認リストの表示切替用モーダル/パネルの状態
   const [isDiscordCheckModalOpen, setIsDiscordCheckModalOpen] = useState(false);
   const [discordCheckRows, setDiscordCheckRows] = useState<Record<string, boolean>>({});
 
@@ -120,7 +132,18 @@ export default function MembersPage() {
       .from('members')
       .select('*')
       .order('rank_role', { ascending: true });
-    if (memberData) setMembers(memberData);
+    
+    if (memberData) {
+      // ★ 厳密な parseBoolean を使って安全に正規化
+      const normalized = memberData.map((m) => ({
+        ...m,
+        is_in_2275: parseBoolean(m.is_in_2275),
+        leader: parseBoolean(m.leader),
+        discord_checked: parseBoolean(m.discord_checked),
+        is_hidden: parseBoolean(m.is_hidden),
+      }));
+      setMembers(normalized);
+    }
 
     const { data: profileData } = await supabase
       .from('profiles')
@@ -148,7 +171,6 @@ export default function MembersPage() {
     fetchData();
   }, []);
 
-  // ★ 追加: status === 'left' かつ discord_checked !== true のメンバーを抽出
   const uncheckDiscordMembers = useMemo(() => {
     return members.filter((m) => m.status === 'left' && !m.discord_checked);
   }, [members]);
@@ -182,11 +204,14 @@ export default function MembersPage() {
   }, [members]);
 
   const getMemberValue = (member: Member, key: string): string => {
+    if (key === 'work_checked_str') {
+      return checkedRows[member.discord_id] ? 'チェックあり' : 'チェックなし';
+    }
     if (key === 'is_in_2275_str') {
-      return member.is_in_2275 === true ? '○' : '-';
+      return parseBoolean(member.is_in_2275) ? '○' : '-';
     }
     if (key === 'leader') {
-      return member.leader === true ? '〇' : '-';
+      return parseBoolean(member.leader) ? '〇' : '-';
     }
     if (key === 'status') {
       return member.status === 'left' ? '除名' : '在籍中';
@@ -217,6 +242,9 @@ export default function MembersPage() {
 
   const getColumnOptions = (key: string) => {
     const options = new Set<string>();
+    if (key === 'work_checked_str') {
+      return ['チェックあり', 'チェックなし'];
+    }
     if (key === 'state') {
       let hasEmpty = false;
       members.forEach((m) => {
@@ -275,16 +303,18 @@ export default function MembersPage() {
 
     return [...result].sort((a, b) => {
       let aVal: any = 
-        sortKey === 'is_in_2275_str' ? (a.is_in_2275 === true ? '○' : '-') : 
-        sortKey === 'leader' ? (a.leader === true ? '〇' : '-') : 
+        sortKey === 'work_checked_str' ? (checkedRows[a.discord_id] ? 'チェックあり' : 'チェックなし') :
+        sortKey === 'is_in_2275_str' ? (parseBoolean(a.is_in_2275) ? '○' : '-') : 
+        sortKey === 'leader' ? (parseBoolean(a.leader) ? '〇' : '-') : 
         sortKey === 'status' ? (a.status === 'left' ? '除名' : '在籍中') :
         sortKey === 'banned_str' ? ((a.game_id && profileBannedMap[a.game_id]) ? '制限中' : '通常') :
         sortKey === 'main_game_id_name' ? getMainAccountName(a.main_game_id) :
         sortKey === 'updated_at' ? getMemberValue(a, 'updated_at') :
         a[sortKey as keyof Member];
       let bVal: any = 
-        sortKey === 'is_in_2275_str' ? (b.is_in_2275 === true ? '○' : '-') : 
-        sortKey === 'leader' ? (b.leader === true ? '〇' : '-') : 
+        sortKey === 'work_checked_str' ? (checkedRows[b.discord_id] ? 'チェックあり' : 'チェックなし') :
+        sortKey === 'is_in_2275_str' ? (parseBoolean(b.is_in_2275) ? '○' : '-') : 
+        sortKey === 'leader' ? (parseBoolean(b.leader) ? '〇' : '-') : 
         sortKey === 'status' ? (b.status === 'left' ? '除名' : '在籍中') :
         sortKey === 'banned_str' ? ((b.game_id && profileBannedMap[b.game_id]) ? '制限中' : '通常') :
         sortKey === 'main_game_id_name' ? getMainAccountName(b.main_game_id) :
@@ -301,7 +331,7 @@ export default function MembersPage() {
       const cmp = String(aVal).localeCompare(String(bVal), 'ja', { numeric: true });
       return sortOrder === 'asc' ? cmp : -cmp;
     });
-  }, [members, searchTerm, columnFilters, sortKey, sortOrder, profileBannedMap, showPastMembers, memberNameMap]);
+  }, [members, searchTerm, columnFilters, sortKey, sortOrder, profileBannedMap, showPastMembers, memberNameMap, checkedRows]);
 
   const toggleFilterValue = (key: string, value: string) => {
     setColumnFilters((prev) => {
@@ -333,7 +363,6 @@ export default function MembersPage() {
     }
   };
 
-  // ★ 追加: 個別のDiscord確認完了処理
   const handleMarkDiscordChecked = async (discordId: string) => {
     const { error } = await supabase
       .from('members')
@@ -347,7 +376,6 @@ export default function MembersPage() {
     fetchData();
   };
 
-  // ★ 追加: チェックされた複数のメンバーを一括でDiscord確認完了にする処理
   const handleBatchMarkDiscordChecked = async () => {
     const targetDiscordIds = Object.keys(discordCheckRows).filter((id) => discordCheckRows[id]);
     if (targetDiscordIds.length === 0) {
@@ -377,6 +405,9 @@ export default function MembersPage() {
     const payloadToSave = {
       ...editingMember,
       transfer: editingMember.transfer === '' ? null : editingMember.transfer,
+      is_in_2275: parseBoolean(editingMember.is_in_2275),
+      leader: parseBoolean(editingMember.leader),
+      discord_checked: parseBoolean(editingMember.discord_checked),
     };
 
     const { data: dbCurrent } = await supabase
@@ -617,7 +648,7 @@ export default function MembersPage() {
             val = null;
           }
           if (header === 'leader' || header === 'is_in_2275' || header === 'discord_checked') {
-            val = val === 'true' || val === 'TRUE' || val === '〇' || val === '○' || val === true;
+            val = parseBoolean(val);
           }
           rowData[header] = val;
         });
@@ -788,7 +819,6 @@ export default function MembersPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* ★ 追加: Discord除名確認モーダルを開くボタン（未確認者がいるときバッジ表示） */}
             <button
               onClick={() => setIsDiscordCheckModalOpen(true)}
               className="relative px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-medium transition shadow flex items-center gap-2"
@@ -907,13 +937,15 @@ export default function MembersPage() {
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#1e293b] text-slate-300 uppercase border-b border-slate-800 whitespace-nowrap sticky top-0 z-30">
               <tr>
-                <th className="p-3 text-center sticky left-0 z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-12 min-w-[48px]">
-                  作業
-                </th>
+                <HeaderCell
+                  title="作業"
+                  fieldKey="work_checked_str"
+                  className="sticky left-0 z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-16 min-w-[64px]"
+                />
                 <HeaderCell
                   title="ゲームアカウント名"
                   fieldKey="name"
-                  className="sticky left-[48px] z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]"
+                  className="sticky left-[64px] z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]"
                 />
                 <HeaderCell title="ゲームID" fieldKey="game_id" />
                 <HeaderCell title="同盟名" fieldKey="alliance" />
@@ -939,9 +971,10 @@ export default function MembersPage() {
             <tbody className="divide-y divide-slate-800 whitespace-nowrap">
               {processedMembers.map((member) => {
                 const isLeft = member.status === 'left';
+                const isIn2275 = parseBoolean(member.is_in_2275); // 念のためここでも安全に判定
                 return (
                   <tr key={member.discord_id || member.game_id} className="hover:bg-slate-800/50 transition">
-                    <td className="p-3 text-center sticky left-0 z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-12 min-w-[48px]">
+                    <td className="p-3 text-center sticky left-0 z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-16 min-w-[64px]">
                       <input
                         type="checkbox"
                         checked={!!checkedRows[member.discord_id]}
@@ -955,7 +988,7 @@ export default function MembersPage() {
                         className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0 cursor-pointer"
                       />
                     </td>
-                    <td className="p-3 font-medium text-white sticky left-[48px] z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]">
+                    <td className="p-3 font-medium text-white sticky left-[64px] z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]">
                       {member.name}
                     </td>
                     <td className="p-3 text-slate-300">{member.game_id || '-'}</td>
@@ -969,7 +1002,7 @@ export default function MembersPage() {
                     <td className="p-3 text-emerald-400 font-medium">{member.shield_soldier || '-'}</td>
                     <td className="p-3 text-emerald-400 font-medium">{member.spear_soldier || '-'}</td>
                     <td className="p-3 text-emerald-400 font-medium">{member.bow_soldier || '-'}</td>
-                    <td className="p-3 text-center">{member.leader ? '〇' : '-'}</td>
+                    <td className="p-3 text-center">{parseBoolean(member.leader) ? '〇' : '-'}</td>
                     <td className="p-3 text-slate-300">{member.power_before_migration || '-'}</td>
                     <td className="p-3 text-slate-300">{member.current_power || '-'}</td>
                     <td className="p-3 text-slate-300">{member.transfer || '-'}</td>
@@ -989,7 +1022,7 @@ export default function MembersPage() {
                       )}
                     </td>
                     <td className="p-3 text-cyan-400">{getMainAccountName(member.main_game_id)}</td>
-                    <td className="p-3 text-center">{member.is_in_2275 ? '○' : '-'}</td>
+                    <td className="p-3 text-center">{isIn2275 ? '○' : '-'}</td>
                     <td className="p-3 text-slate-300 max-w-xs truncate">{member.note || '-'}</td>
                     <td className="p-3 text-slate-400 text-xs">
                       {getMemberValue(member, 'updated_at')}
@@ -1009,7 +1042,6 @@ export default function MembersPage() {
           </table>
         </div>
 
-        {/* ★ 追加: 除名メンバーDiscord確認用モーダル */}
         {isDiscordCheckModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
             <div className="bg-[#151c2c] border border-slate-700 rounded-2xl w-full max-w-3xl p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
@@ -1403,7 +1435,7 @@ export default function MembersPage() {
                   <label className="flex items-center gap-2 cursor-pointer bg-[#0b0f19] p-3 rounded-lg border border-slate-800">
                     <input
                       type="checkbox"
-                      checked={!!editingMember.leader}
+                      checked={parseBoolean(editingMember.leader)}
                       onChange={(e) => setEditingMember({ ...editingMember, leader: e.target.checked })}
                       className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0"
                     />
@@ -1413,7 +1445,7 @@ export default function MembersPage() {
                   <label className="flex items-center gap-2 cursor-pointer bg-[#0b0f19] p-3 rounded-lg border border-slate-800">
                     <input
                       type="checkbox"
-                      checked={!!editingMember.is_in_2275}
+                      checked={parseBoolean(editingMember.is_in_2275)}
                       onChange={(e) => setEditingMember({ ...editingMember, is_in_2275: e.target.checked })}
                       className="rounded bg-slate-900 border-slate-700 text-cyan-600 focus:ring-0"
                     />
