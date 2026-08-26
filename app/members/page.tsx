@@ -402,7 +402,7 @@ export default function MembersPage() {
 
     const payloadToSave = {
       ...editingMember,
-      transfer: editingMember.transfer === '' ? null : editingMember.transfer,
+      transfer: editingMember.transfer === '' ? undefined : editingMember.transfer,
       alliance: editingMember.alliance === '' ? null : editingMember.alliance,
       rank_role: editingMember.rank_role === '' ? null : editingMember.rank_role,
       fc_level: editingMember.fc_level === '' ? null : editingMember.fc_level,
@@ -1370,7 +1370,7 @@ export default function MembersPage() {
                     <label className="block text-xs font-semibold text-slate-300 mb-1">移民時期</label>
                     <select
                       value={editingMember.transfer || ''}
-                      onChange={(e) => setEditingMember({ ...editingMember, transfer: e.target.value === '' ? null : e.target.value })}
+                      onChange={(e) => setEditingMember({ ...editingMember, transfer: e.target.value === '' ? undefined : e.target.value })}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
                       <option value="">-</option>
