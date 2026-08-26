@@ -19,28 +19,29 @@ interface PageItem {
   manage: boolean;
 }
 
-// 親（AuthGuard）からロールを直接受け取るように変更
 interface NavigationProps {
-  userRole?: string; // 例: 'master', 'admin', 'strategy' など
+  userRoles?: string[];
+  userRole?: string;
 }
 
-export default function Navigation({ userRole = 'member' }: NavigationProps) {
+export default function Navigation({ userRoles, userRole = 'member' }: NavigationProps) {
   const pathname = usePathname();
   const router = useRouter();
   
   const [pages, setPages] = useState<PageItem[]>([]);
   const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
-  const [isMasterUser, setIsMasterUser] = useState(false);
+  const [isMasterOnly, setIsMasterOnly] = useState(false);
   const [roleDisplay, setRoleDisplay] = useState<string>('MEMBER');
 
   useEffect(() => {
     const fetchPermissions = async () => {
       try {
-        const currentRole = userRole ? userRole.toLowerCase() : 'member';
-        const isMaster = currentRole === 'master' || currentRole === 'admin';
+        const roles = userRoles && userRoles.length > 0 ? userRoles : [userRole.toLowerCase()];
+        const isMaster = roles.includes('master'); // masterのときだけ全許可にする
         
-        setIsMasterUser(currentRole === 'master');
+        setIsMasterOnly(isMaster);
         
+        const primaryRole = roles.includes('master') ? 'master' : roles.includes('admin') ? 'admin' : roles[1] || roles[0];
         const roleMap: { [key: string]: string } = {
           master: 'MASTER',
           admin: 'ADMIN',
@@ -53,15 +54,16 @@ export default function Navigation({ userRole = 'member' }: NavigationProps) {
           priority_reserve: 'PRIORITY_RESERVE',
           member: 'MEMBER'
         };
-        setRoleDisplay(roleMap[currentRole] || 'MEMBER');
+        setRoleDisplay(roleMap[primaryRole] || 'MEMBER');
 
-        if (currentRole === 'master') {
+        if (isMaster) {
           setAllowedPaths(['*']);
         } else {
+          // ADMINを含む一般ロールは role_permissions に登録されているパスのみ許可
           const { data: permData } = await supabase
             .from('role_permissions')
             .select('path')
-            .eq('web_role', currentRole);
+            .in('web_role', roles);
 
           if (permData) {
             setAllowedPaths(permData.map((p) => p.path));
@@ -85,7 +87,7 @@ export default function Navigation({ userRole = 'member' }: NavigationProps) {
     };
 
     fetchPermissions();
-  }, [userRole, pathname]);
+  }, [userRoles, userRole, pathname]);
 
   const handleLogout = async () => {
     localStorage.removeItem('logged_in_game_id');
@@ -111,9 +113,12 @@ export default function Navigation({ userRole = 'member' }: NavigationProps) {
         <div className="flex items-center gap-1 shrink-0">
           {pages.map((page) => {
             const hasPermission = 
-              isMasterUser || 
+              isMasterOnly || 
               allowedPaths.includes('*') || 
-              allowedPaths.includes(page.path);
+              allowedPaths.some((p) => {
+                if (p === '/') return page.path === '/';
+                return page.path === p || page.path.startsWith(p + '/');
+              });
 
             if (!hasPermission) return null;
 

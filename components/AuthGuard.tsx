@@ -11,6 +11,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
+  const [activeRoles, setActiveRoles] = useState<string[]>(['member']);
   const [userRoleForNav, setUserRoleForNav] = useState('member');
 
   const [gameIdInput, setGameIdInput] = useState('');
@@ -79,34 +80,48 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         localStorage.setItem('logged_in_game_id', profileData.game_id);
       }
 
-      // ロールの判定と最も強いロールの選定
-      const activeRoles: string[] = ['member'];
-      let determinedRole = 'member';
+      // 複数ロールの判定（独立したif文ですべてのフラグを収集）
+      const currentActiveRoles: string[] = ['member'];
 
       if (profileData) {
-        if (profileData.is_master) { activeRoles.push('master'); determinedRole = 'master'; }
-        else if (profileData.is_admin) { activeRoles.push('admin'); determinedRole = 'admin'; }
-        else if (profileData.is_strategy) { activeRoles.push('strategy'); determinedRole = 'strategy'; }
-        else if (profileData.is_transfer) { activeRoles.push('transfer'); determinedRole = 'transfer'; }
-        else if (profileData.is_member_manager) { activeRoles.push('member_manager'); determinedRole = 'member_manager'; }
-        else if (profileData.is_reserve_master) { activeRoles.push('reserve_master'); determinedRole = 'reserve_master'; }
-        else if (profileData.is_r4) { activeRoles.push('r4'); determinedRole = 'r4'; }
-        else if (profileData.is_gen_manage) { activeRoles.push('gen_manage'); determinedRole = 'gen_manage'; }
-        else if (profileData.is_priority_reserve) { activeRoles.push('priority_reserve'); determinedRole = 'priority_reserve'; }
+        if (profileData.is_master) currentActiveRoles.push('master');
+        if (profileData.is_admin) currentActiveRoles.push('admin');
+        if (profileData.is_strategy) currentActiveRoles.push('strategy');
+        if (profileData.is_transfer) currentActiveRoles.push('transfer');
+        if (profileData.is_member_manager) currentActiveRoles.push('member_manager');
+        if (profileData.is_reserve_master) currentActiveRoles.push('reserve_master');
+        if (profileData.is_r4) currentActiveRoles.push('r4');
+        if (profileData.is_gen_manage) currentActiveRoles.push('gen_manage');
+        if (profileData.is_priority_reserve) currentActiveRoles.push('priority_reserve');
       }
+
+      setActiveRoles(currentActiveRoles);
+
+      // ナビゲーション表示用の代表ロール選定（上位権限を優先）
+      let determinedRole = 'member';
+      if (currentActiveRoles.includes('master')) determinedRole = 'master';
+      else if (currentActiveRoles.includes('admin')) determinedRole = 'admin';
+      else if (currentActiveRoles.includes('strategy')) determinedRole = 'strategy';
+      else if (currentActiveRoles.includes('transfer')) determinedRole = 'transfer';
+      else if (currentActiveRoles.includes('member_manager')) determinedRole = 'member_manager';
+      else if (currentActiveRoles.includes('reserve_master')) determinedRole = 'reserve_master';
+      else if (currentActiveRoles.includes('r4')) determinedRole = 'r4';
+      else if (currentActiveRoles.includes('gen_manage')) determinedRole = 'gen_manage';
+      else if (currentActiveRoles.includes('priority_reserve')) determinedRole = 'priority_reserve';
 
       setUserRoleForNav(determinedRole);
 
-      if (activeRoles.includes('master')) {
+      if (currentActiveRoles.includes('master')) {
         setHasPermission(true);
         setLoading(false);
         return;
       }
 
+      // 持っているすべてのロールに紐づく許可パスを一括取得
       const { data: rolePerms } = await supabase
         .from('role_permissions')
         .select('path')
-        .in('web_role', activeRoles);
+        .in('web_role', currentActiveRoles);
 
       const allowedPaths = rolePerms?.map((p) => p.path) || [];
       const isAllowed = 
@@ -173,7 +188,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
   };
 
-  // 1. ローディング中の画面（メニューなし）
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
@@ -182,7 +196,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // 2. 未ログイン状態の画面（メニューなし）
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center p-4">
@@ -250,7 +263,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // 3. 権限がない、または退会済み状態の画面（メニューなし）
   if (!hasPermission) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center p-4">
@@ -274,10 +286,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // 4. 【合格ライン】ログイン済み 且つ 権限ありの場合のみ、正しいロールを渡して Navigation を「1つだけ」表示
   return (
     <div className="flex flex-col flex-1 w-full min-h-screen">
-      <Navigation userRole={userRoleForNav} />
+      <Navigation userRoles={activeRoles} userRole={userRoleForNav} />
       {children}
     </div>
   );
