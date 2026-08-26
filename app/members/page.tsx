@@ -53,17 +53,17 @@ export interface Member {
 export type SortKey =
   | 'work_checked_str'
   | 'name'
+  | 'alliance'
   | 'game_id'
   | 'main_game_id_name'
-  | 'alliance'
   | 'rank_role'
   | 'fc_level'
   | 'shield_soldier'
   | 'spear_soldier'
   | 'bow_soldier'
   | 'leader'
-  | 'power_before_migration'
   | 'current_power'
+  | 'power_before_migration'
   | 'transfer'
   | 'state'
   | 'status'
@@ -586,9 +586,9 @@ export default function MembersPage() {
   const handleExportMembersCSV = () => {
     if (processedMembers.length === 0) return alert('出力するデータがありません');
     const headers = [
-      'name', 'game_id', 'main_game_id', 'alliance', 'rank_role', 'fc_level',
+      'name', 'alliance', 'game_id', 'main_game_id', 'rank_role', 'fc_level',
       'shield_soldier', 'spear_soldier', 'bow_soldier', 'leader',
-      'power_before_migration', 'current_power', 'transfer', 'state',
+      'current_power', 'power_before_migration', 'transfer', 'state',
       'is_in_2275', 'status', 'discord_checked', 'note', 'updated_at'
     ];
     downloadCSV(`members_export_${new Date().toISOString().slice(0, 10)}.csv`, headers, processedMembers);
@@ -878,8 +878,8 @@ export default function MembersPage() {
                   shield_soldier: '',
                   spear_soldier: '',
                   bow_soldier: '',
-                  power_before_migration: '',
                   current_power: '',
+                  power_before_migration: '',
                   transfer: '',
                   bear: '21時',
                   state: '',
@@ -951,16 +951,20 @@ export default function MembersPage() {
                   fieldKey="name"
                   className="sticky left-[64px] z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]"
                 />
+                <HeaderCell
+                  title="同盟名"
+                  fieldKey="alliance"
+                  className="sticky left-[204px] z-30 bg-[#1e293b] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[100px]"
+                />
                 <HeaderCell title="ゲームID" fieldKey="game_id" />
-                <HeaderCell title="同盟名" fieldKey="alliance" />
                 <HeaderCell title="Role" fieldKey="rank_role" />
                 <HeaderCell title="FC" fieldKey="fc_level" />
                 <HeaderCell title="盾兵" fieldKey="shield_soldier" />
                 <HeaderCell title="槍兵" fieldKey="spear_soldier" />
                 <HeaderCell title="弓兵" fieldKey="bow_soldier" />
                 <HeaderCell title="リーダー" fieldKey="leader" />
-                <HeaderCell title="総力(移民前)" fieldKey="power_before_migration" />
                 <HeaderCell title="総力(現在)" fieldKey="current_power" />
+                <HeaderCell title="総力(移民前)" fieldKey="power_before_migration" />
                 <HeaderCell title="移民時期" fieldKey="transfer" />
                 <HeaderCell title="元鯖" fieldKey="state" />
                 <HeaderCell title="ステータス" fieldKey="status" />
@@ -995,8 +999,10 @@ export default function MembersPage() {
                     <td className="p-3 font-medium text-white sticky left-[64px] z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[140px]">
                       {member.name}
                     </td>
+                    <td className="p-3 font-bold text-indigo-400 sticky left-[204px] z-20 bg-[#151c2c] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] min-w-[100px]">
+                      {member.alliance || '-'}
+                    </td>
                     <td className="p-3 text-slate-300">{member.game_id || '-'}</td>
-                    <td className="p-3 font-bold text-indigo-400">{member.alliance || '-'}</td>
                     <td className="p-3">
                       <span className="px-2 py-0.5 bg-slate-700 rounded font-bold text-slate-300">
                         {member.rank_role || '-'}
@@ -1007,8 +1013,8 @@ export default function MembersPage() {
                     <td className="p-3 text-emerald-400 font-medium">{member.spear_soldier || '-'}</td>
                     <td className="p-3 text-emerald-400 font-medium">{member.bow_soldier || '-'}</td>
                     <td className="p-3 text-center">{parseBoolean(member.leader) ? '〇' : '-'}</td>
-                    <td className="p-3 text-slate-300">{member.power_before_migration || '-'}</td>
                     <td className="p-3 text-slate-300">{member.current_power || '-'}</td>
+                    <td className="p-3 text-slate-300">{member.power_before_migration || '-'}</td>
                     <td className="p-3 text-slate-300">{member.transfer || '-'}</td>
                     <td className="p-3 text-cyan-300 font-mono">{member.state || '-'}</td>
                     <td className="p-3">
@@ -1171,6 +1177,28 @@ export default function MembersPage() {
                   </div>
 
                   <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">同盟名</label>
+                    <select
+                      value={editingMember.alliance || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, alliance: e.target.value === '' ? null : e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="">-</option>
+                      <option value="GEN">GEN</option>
+                      <option value="GOD">GOD</option>
+                      <option value="www">www</option>
+                      <option value="RPN">RPN</option>
+                      <option value="MSO">MSO</option>
+                      <option value="NPT">NPT</option>
+                      <option value="JvA">JvA</option>
+                      <option value="ABU">ABU</option>
+                      <option value="HUN">HUN</option>
+                      <option value="ARK">ARK</option>
+                      <option value="UTP">UTP</option>
+                    </select>
+                  </div>
+
+                  <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">ゲームID</label>
                     <input
                       type="text"
@@ -1210,28 +1238,6 @@ export default function MembersPage() {
                       })}
                     </datalist>
                     <p className="text-[10px] text-slate-400 mt-1">※ 既存メンバーの名前やゲームIDを入力・選択できます</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">同盟名</label>
-                    <select
-                      value={editingMember.alliance || ''}
-                      onChange={(e) => setEditingMember({ ...editingMember, alliance: e.target.value === '' ? null : e.target.value })}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                    >
-                      <option value="">-</option>
-                      <option value="GEN">GEN</option>
-                      <option value="GOD">GOD</option>
-                      <option value="www">www</option>
-                      <option value="RPN">RPN</option>
-                      <option value="MSO">MSO</option>
-                      <option value="NPT">NPT</option>
-                      <option value="JvA">JvA</option>
-                      <option value="ABU">ABU</option>
-                      <option value="HUN">HUN</option>
-                      <option value="ARK">ARK</option>
-                      <option value="UTP">UTP</option>
-                    </select>
                   </div>
 
                   {/* Role */}
