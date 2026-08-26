@@ -409,6 +409,8 @@ export default function MembersPage() {
       shield_soldier: editingMember.shield_soldier === '' ? null : editingMember.shield_soldier,
       spear_soldier: editingMember.spear_soldier === '' ? null : editingMember.spear_soldier,
       bow_soldier: editingMember.bow_soldier === '' ? null : editingMember.bow_soldier,
+      // ▼ 総力(移民前)が空欄の場合は null または undefined にして保存（0に変換されないようにする）
+      power_before_migration: (editingMember.power_before_migration === '' || editingMember.power_before_migration === null || editingMember.power_before_migration === undefined) ? null : editingMember.power_before_migration,
       is_in_2275: parseBoolean(editingMember.is_in_2275),
       leader: parseBoolean(editingMember.leader),
       discord_checked: parseBoolean(editingMember.discord_checked),
@@ -653,6 +655,10 @@ export default function MembersPage() {
           }
           if (header === 'leader' || header === 'is_in_2275' || header === 'discord_checked') {
             val = parseBoolean(val);
+          }
+          // ▼ CSV取り込みの際も、総力(移民前)が空の場合はそのままnullにする
+          if (header === 'power_before_migration' && (val === '' || val === null || val === '-')) {
+            val = null;
           }
           rowData[header] = val;
         });
@@ -1165,6 +1171,7 @@ export default function MembersPage() {
 
               <form onSubmit={handleSaveMember} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* === 1行目: ゲームアカウント名、ゲームID、メインアカウント === */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">ゲームアカウント名 *</label>
                     <input
@@ -1174,28 +1181,6 @@ export default function MembersPage() {
                       onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">同盟名</label>
-                    <select
-                      value={editingMember.alliance || ''}
-                      onChange={(e) => setEditingMember({ ...editingMember, alliance: e.target.value === '' ? null : e.target.value })}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
-                    >
-                      <option value="">-</option>
-                      <option value="GEN">GEN</option>
-                      <option value="GOD">GOD</option>
-                      <option value="www">www</option>
-                      <option value="RPN">RPN</option>
-                      <option value="MSO">MSO</option>
-                      <option value="NPT">NPT</option>
-                      <option value="JvA">JvA</option>
-                      <option value="ABU">ABU</option>
-                      <option value="HUN">HUN</option>
-                      <option value="ARK">ARK</option>
-                      <option value="UTP">UTP</option>
-                    </select>
                   </div>
 
                   <div>
@@ -1240,7 +1225,29 @@ export default function MembersPage() {
                     <p className="text-[10px] text-slate-400 mt-1">※ 既存メンバーの名前やゲームIDを入力・選択できます</p>
                   </div>
 
-                  {/* Role */}
+                  {/* === 2行目: 同盟名、Role、ステータス === */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">同盟名</label>
+                    <select
+                      value={editingMember.alliance || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, alliance: e.target.value === '' ? null : e.target.value })}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="">-</option>
+                      <option value="GEN">GEN</option>
+                      <option value="GOD">GOD</option>
+                      <option value="www">www</option>
+                      <option value="RPN">RPN</option>
+                      <option value="MSO">MSO</option>
+                      <option value="NPT">NPT</option>
+                      <option value="JvA">JvA</option>
+                      <option value="ABU">ABU</option>
+                      <option value="HUN">HUN</option>
+                      <option value="ARK">ARK</option>
+                      <option value="UTP">UTP</option>
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">Role</label>
                     <select
@@ -1274,7 +1281,7 @@ export default function MembersPage() {
                     </select>
                   </div>
 
-                  {/* FC */}
+                  {/* === その他の項目 === */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">FC</label>
                     <select
