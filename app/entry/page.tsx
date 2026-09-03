@@ -1,195 +1,122 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-interface EventItem {
-  id: string | number;
-  title: string;
-  event_date: string;
-  order_index?: number;
-  description?: string;
-}
-
-export default function EventsPage() {
-  const [events, setEvents] = useState<EventItem[]>([]);
+export default function EntryListPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [title, setTitle] = useState('');
-  const [eventDate, setEventDate] = useState('');
-  const [description, setDescription] = useState('');
-  const [orderIndex, setOrderIndex] = useState<number>(0);
+  const [events, setEvents] = useState<any[]>([]);
+  const [showPast, setShowPast] = useState(false);
 
-  const fetchEvents = async () => {
+  useEffect(() => {
+    fetchSurveys();
+  }, []);
+
+  const fetchSurveys = async () => {
     try {
       setLoading(true);
+
+      // surveys_master から取得（frost_dragon と weapon_entry のみを確実に抽出）
       const { data, error } = await supabase
-        .from('events')
+        .from('surveys_master')
         .select('*')
-        .order('order_index', { ascending: true, nullsFirst: false });
+        .or('survey_type.eq.frost_dragon,survey_type.eq.weapon_entry')
+        .order('event_date', { ascending: false });
 
       if (error) throw error;
-      if (data) setEvents(data);
+
+      // 各アイテムの survey_id として自身の id をマッピング
+      const formatted = (data || []).map((item) => ({
+        ...item,
+        survey_id: item.id,
+      }));
+
+      setEvents(formatted);
     } catch (err) {
-      console.error('イベント取得エラー:', err);
+      console.error('一覧データ取得エラー:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    try {
-      const { error } = await supabase.from('events').insert([
-        {
-          title,
-          event_date: eventDate,
-          description,
-          order_index: Number(orderIndex) || 0,
-        },
-      ]);
-
-      if (error) throw error;
-
-      setTitle('');
-      setEventDate('');
-      setDescription('');
-      setOrderIndex(0);
-      fetchEvents();
-    } catch (err) {
-      console.error('イベント作成エラー:', err);
-      alert('イベントの作成に失敗しました');
+  // 現在の日付と比較して未来/過去を判定
+  const todayStr = new Date().toISOString().split('T')[0];
+  const filteredItems = events.filter((item) => {
+    const eventDate = item.event_date || '2099-12-31';
+    if (showPast) {
+      return eventDate < todayStr;
+    } else {
+      return eventDate >= todayStr;
     }
-  };
+  });
 
-  const handleDeleteEvent = async (id: string | number) => {
-    if (!window.confirm('このイベントを削除してもよろしいですか？')) return;
-
-    try {
-      const { error } = await supabase.from('events').delete().eq('id', id);
-      if (error) throw error;
-      fetchEvents();
-    } catch (err) {
-      console.error('イベント削除エラー:', err);
-      alert('イベントの削除に失敗しました');
-    }
-  };
+  if (loading) {
+    return <div className="p-8 text-slate-400 text-xs bg-[#0b0f19] min-h-screen">読み込み中...</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100">
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+    <div className="p-6 space-y-6 bg-[#0b0f19] min-h-screen text-slate-100">
+      {/* ヘッダー・タブ切替 */}
+      <div className="flex justify-between items-center border-b border-slate-800 pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">イベント管理</h1>
-          <p className="text-xs text-slate-400 mt-1">
-            過去イベントや今後のイベントの追加・削除を行います。
-          </p>
+          <h1 className="text-xl font-bold text-white">イベントエントリー一覧</h1>
+          <p className="text-xs text-slate-400 mt-1">霜竜の覇者 と 兵器リーグのエントリー管理</p>
         </div>
-
-        {/* イベント新規作成フォーム */}
-        <form onSubmit={handleCreateEvent} className="bg-[#151c2c] border border-slate-800 rounded-xl p-6 shadow-xl space-y-4">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            ➕ 新規イベント追加
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">イベント名</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="例: KvK 第1回戦"
-                required
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">開催日 (文字列可)</label>
-              <input
-                type="text"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-                placeholder="例: 2026/04/01"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">並び順 (数値)</label>
-              <input
-                type="number"
-                value={orderIndex}
-                onChange={(e) => setOrderIndex(Number(e.target.value))}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg text-xs transition shadow"
-              >
-                追加する
-              </button>
-            </div>
-          </div>
-        </form>
-
-        {/* イベント一覧テーブル */}
-        <div className="bg-[#151c2c] border border-slate-800 rounded-xl shadow-xl overflow-hidden">
-          <div className="p-4 border-b border-slate-800 font-bold text-sm text-white">
-            登録済みイベント一覧
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-[#1e293b] text-slate-300">
-                  <th className="px-4 py-3 border-b border-slate-700 w-16 text-center">順序</th>
-                  <th className="px-4 py-3 border-b border-slate-700">イベント名</th>
-                  <th className="px-4 py-3 border-b border-slate-700">開催日</th>
-                  <th className="px-4 py-3 border-b border-slate-700 text-center w-24">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="text-center py-8 text-slate-500">
-                      読み込み中...
-                    </td>
-                  </tr>
-                ) : events.length > 0 ? (
-                  events.map((ev) => (
-                    <tr key={ev.id} className="hover:bg-slate-800/40 transition">
-                      <td className="px-4 py-3 text-center text-slate-400">{ev.order_index ?? 0}</td>
-                      <td className="px-4 py-3 font-medium text-white">{ev.title}</td>
-                      <td className="px-4 py-3 text-slate-300">{ev.event_date || '-'}</td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => handleDeleteEvent(ev.id)}
-                          className="px-3 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800 rounded text-[11px] transition"
-                        >
-                          削除
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="text-center py-8 text-slate-500">
-                      イベントが登録されていません
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="flex bg-[#131b2e] p-1 rounded-lg border border-slate-800">
+          <button
+            onClick={() => setShowPast(false)}
+            className={`px-3 py-1.5 rounded text-xs transition ${
+              !showPast ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            受付中・予定
+          </button>
+          <button
+            onClick={() => setShowPast(true)}
+            className={`px-3 py-1.5 rounded text-xs transition ${
+              showPast ? 'bg-cyan-600 text-white font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            過去のイベント
+          </button>
         </div>
+      </div>
+
+      {/* グリッド一覧 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredItems.length === 0 ? (
+          <div className="col-span-full p-8 text-center text-slate-500 text-xs bg-[#131b2e]/40 rounded-lg border border-slate-800">
+            該当するイベントはありません。
+          </div>
+        ) : (
+          filteredItems.map((item) => (
+            <div
+              key={item.survey_id}
+              onClick={() => router.push(`/entry/${item.survey_id}`)}
+              className="bg-[#131b2e] border border-slate-800 hover:border-cyan-500/50 cursor-pointer p-4 rounded-lg transition-all duration-200 flex flex-col justify-between space-y-3 shadow-md"
+            >
+              <div>
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded border bg-cyan-950 text-cyan-400 border-cyan-800">
+                    {item.survey_type === 'frost_dragon' ? '霜竜の覇者' : '兵器リーグ'}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">{item.event_date || '日付未定'}</span>
+                </div>
+                <h2 className="text-sm font-bold text-white line-clamp-2">{item.title}</h2>
+              </div>
+              <div className="flex justify-end items-center pt-2 border-t border-slate-800/60 text-xs">
+                <span className="text-cyan-400 font-medium hover:underline">エントリー画面へ &rarr;</span>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
