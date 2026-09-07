@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
+import { fetchDictionary } from '@/lib/translation';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,11 +34,93 @@ export default function Navigation({ userRoles, userRole = 'member' }: Navigatio
   const [isMasterOnly, setIsMasterOnly] = useState(false);
   const [roleDisplay, setRoleDisplay] = useState<string>('MEMBER');
 
+  const [lang, setLang] = useState<'ja' | 'en'>('ja');
+  const [dict, setDict] = useState<Record<string, string>>({});
+  const [dynamicTranslations, setDynamicTranslations] = useState<Record<string, string>>({});
+
+  // 言語と辞書のロード、および言語切替イベントのリスナー設定
+  useEffect(() => {
+    const updateLangAndDict = async () => {
+      const savedLang = (localStorage.getItem('preferred_lang') as 'ja' | 'en') || 'ja';
+      setLang(savedLang);
+      const loadedDict = await fetchDictionary();
+      setDict(loadedDict);
+    };
+
+    updateLangAndDict();
+
+    const handleStorageChange = () => {
+      updateLangAndDict();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('preferred_lang_changed', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('preferred_lang_changed', handleStorageChange);
+    };
+  }, []);
+
+  // 英語切替時にナビゲーション内のテキストを一括プリフェッチして即時反映させる
+  useEffect(() => {
+    if (lang === 'ja') return;
+
+    const textsToTranslate = [
+      "ログアウト",
+      ...pages.map(p => p.page_name).filter(Boolean)
+    ];
+
+    let isMounted = true;
+
+    const translateBatch = async () => {
+      const newMap: Record<string, string> = { ...dynamicTranslations };
+      let hasNew = false;
+
+      for (const text of textsToTranslate) {
+        if (!text) continue;
+
+        if (dict[text]) {
+          newMap[text] = dict[text];
+          hasNew = true;
+          continue;
+        }
+
+        if (newMap[text]) continue;
+
+        try {
+          const res = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, lang }),
+          });
+          const data = await res.json();
+          if (data.translatedText) {
+            newMap[text] = data.translatedText;
+            hasNew = true;
+          }
+        } catch (e) {
+          console.error('Nav Translation error:', e);
+        }
+      }
+
+      if (isMounted && hasNew) {
+        setDynamicTranslations({ ...newMap });
+      }
+    };
+
+    translateBatch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [lang, dict, pages]);
+
   useEffect(() => {
     const fetchPermissions = async () => {
       try {
         const roles = userRoles && userRoles.length > 0 ? userRoles : [userRole.toLowerCase()];
-        const isMaster = roles.includes('master'); // masterのときだけ全許可にする
+        const isMaster = roles.includes('master');
         
         setIsMasterOnly(isMaster);
         
@@ -59,7 +142,6 @@ export default function Navigation({ userRoles, userRole = 'member' }: Navigatio
         if (isMaster) {
           setAllowedPaths(['*']);
         } else {
-          // ADMINを含む一般ロールは role_permissions に登録されているパスのみ許可
           const { data: permData } = await supabase
             .from('role_permissions')
             .select('path')
@@ -96,6 +178,13 @@ export default function Navigation({ userRoles, userRole = 'member' }: Navigatio
     window.location.href = '/';
   };
 
+  // 確実な翻訳解決用ヘルパー
+  const t = (text: string | null | undefined): string => {
+    if (!text) return '';
+    if (lang === 'ja') return text;
+    return dynamicTranslations[text] || dict[text] || text;
+  };
+
   return (
     <nav className="bg-[#111726] border-b border-slate-800/80 px-4 py-2.5 shrink-0 flex items-center justify-between gap-4 shadow-lg sticky top-0 z-50">
       
@@ -110,6 +199,7 @@ export default function Navigation({ userRoles, userRole = 'member' }: Navigatio
           <span className="text-base font-bold text-white tracking-wide whitespace-nowrap">2275 MANAGER</span>
         </Link>
 
+        {/* ページリスト（Supabaseから取得。パスが「/」のものも含めて一元管理） */}
         <div className="flex items-center gap-1 shrink-0">
           {pages.map((page) => {
             const hasPermission = 
@@ -139,7 +229,7 @@ export default function Navigation({ userRoles, userRole = 'member' }: Navigatio
                     : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
                 }`}
               >
-                {page.page_name}
+                {t(page.page_name)}
               </Link>
             );
           })}
@@ -155,7 +245,7 @@ export default function Navigation({ userRoles, userRole = 'member' }: Navigatio
           onClick={handleLogout}
           className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-200 rounded-lg text-xs font-medium transition shadow-sm cursor-pointer border border-rose-800/60 whitespace-nowrap"
         >
-          ログアウト
+          {t("ログアウト")}
         </button>
       </div>
     </nav>

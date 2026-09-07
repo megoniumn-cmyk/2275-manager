@@ -1,8 +1,10 @@
+// app/surveys/answer/tal_entry/[id]/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams } from 'next/navigation';
+import { fetchDictionary } from '@/lib/translation';
 
 type SurveyMaster = {
   id: string;
@@ -25,6 +27,10 @@ type MemberData = {
 export default function TalSurveyAnswerPage() {
   const params = useParams();
   const surveyId = (Array.isArray(params?.id) ? params.id[0] : params?.id) as string;
+
+  const [lang, setLang] = useState<'ja' | 'en'>('ja');
+  const [dict, setDict] = useState<Record<string, string>>({});
+  const [dynamicTranslations, setDynamicTranslations] = useState<Record<string, string>>({});
 
   const [survey, setSurvey] = useState<SurveyMaster | null>(null);
   const [member, setMember] = useState<MemberData | null>(null);
@@ -51,23 +57,15 @@ export default function TalSurveyAnswerPage() {
 
   const [savedResponse, setSavedResponse] = useState<any>(null);
 
-  const getTargetDates = (baseDateStr: string | null) => {
-    const dates: string[] = [];
-    const base = baseDateStr ? new Date(baseDateStr) : new Date();
-    if (isNaN(base.getTime())) {
-      base.setTime(new Date().getTime());
-    }
-    for (let i = 0; i <= 12; i += 2) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      dates.push(`${d.getMonth() + 1}/${d.getDate()}`);
-    }
-    return dates;
-  };
-
-  const targetDates = getTargetDates(survey?.event_date || null);
-
+  // 1. 初期ロード（言語設定・辞書データ・アンケート＆回答データ取得）
   useEffect(() => {
+    const savedLang = localStorage.getItem('preferred_lang') as 'ja' | 'en';
+    if (savedLang) setLang(savedLang);
+
+    fetchDictionary().then((loadedDict) => {
+      setDict(loadedDict);
+    });
+
     async function initData() {
       if (!surveyId) return;
 
@@ -153,9 +151,130 @@ export default function TalSurveyAnswerPage() {
     initData();
   }, [surveyId]);
 
+  // 2. 動的翻訳の補完処理
+  useEffect(() => {
+    if (lang === 'ja') return;
+
+    const baseTexts = [
+      "読み込み中...",
+      "アンケートが見つかりませんでした。",
+      "受付終了",
+      "受付中",
+      "回答送信完了",
+      "回答期限: ",
+      "✅ 回答が送信されました",
+      "ご回答ありがとうございます。以下の内容で登録されています。",
+      "内容を修正する",
+      "あなたの回答内容",
+      "回答ゲームID",
+      "エントリー希望",
+      "溶鉱炉Lv",
+      "部隊戦闘力",
+      "総力",
+      "VC参加状況",
+      "各日程の参加予定",
+      "兵士Lv",
+      "盾兵",
+      "槍兵",
+      "弓兵",
+      "キャンセルして結果に戻る",
+      "エントリー希望しますか",
+      "*回答必須",
+      "① 希望する",
+      "② 希望しない",
+      "過去の回答でFC10を選択している場合、設問は表示されません。",
+      "部隊戦闘力を入力してください。",
+      "例: 13000",
+      "それぞれの参加予定について回答してください。",
+      "の予定",
+      "④ 途中参加",
+      "⑤ 不参加",
+      "VC参加(聞き専含む)について回答してください。",
+      "① 全部VC参加可能",
+      "② 一部VC参加不可",
+      "③ VC参加不可",
+      "総力を入力してください。",
+      "例: 1.1",
+      "兵士Lvを回答してください（SvS当日までに解放する場合は、解放予定後の兵士Lvで回答）",
+      "保存中...",
+      "回答を更新する",
+      "回答を送信する",
+      "初戦の日付: "
+    ];
+
+    const surveyTitle = survey?.title ? [survey.title] : [];
+    const textsToTranslate = Array.from(new Set([...baseTexts, ...surveyTitle]));
+
+    let isMounted = true;
+
+    const translateBatch = async () => {
+      const newMap: Record<string, string> = { ...dynamicTranslations };
+      let hasNew = false;
+
+      for (const text of textsToTranslate) {
+        if (!text) continue;
+
+        if (dict[text]) {
+          newMap[text] = dict[text];
+          hasNew = true;
+          continue;
+        }
+
+        if (newMap[text]) continue;
+
+        try {
+          const res = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, lang }),
+          });
+          const data = await res.json();
+          if (data.translatedText) {
+            newMap[text] = data.translatedText;
+            hasNew = true;
+          }
+        } catch (e) {
+          console.error('Translation error:', e);
+        }
+      }
+
+      if (isMounted && hasNew) {
+        setDynamicTranslations({ ...newMap });
+      }
+    };
+
+    if (textsToTranslate.length > 0) {
+      translateBatch();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [lang, dict, survey]);
+
+  const changeLang = (newLang: 'ja' | 'en') => {
+    setLang(newLang);
+    localStorage.setItem('preferred_lang', newLang);
+  };
+
+  const getTargetDates = (baseDateStr: string | null) => {
+    const dates: string[] = [];
+    const base = baseDateStr ? new Date(baseDateStr) : new Date();
+    if (isNaN(base.getTime())) {
+      base.setTime(new Date().getTime());
+    }
+    for (let i = 0; i <= 12; i += 2) {
+      const d = new Date(base);
+      d.setUTCDate(d.getUTCDate() + i);
+      dates.push(`${d.getUTCMonth() + 1}/${d.getUTCDate()}`);
+    }
+    return dates;
+  };
+
+  const targetDates = getTargetDates(survey?.event_date || null);
+
   const isExpired = survey ? new Date() > new Date(survey.deadline) : false;
 
-  // 3種すべてが FC10T11 かどうかを判定するフラグ
   const isAllFc10T11 = shieldSoldier === 'FC10T11' && spearSoldier === 'FC10T11' && bowSoldier === 'FC10T11';
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -163,12 +282,12 @@ export default function TalSurveyAnswerPage() {
     e.stopPropagation();
 
     if (isExpired) {
-      alert('受付期限が終了しているため、回答・修正はできません。');
+      alert(lang === 'en' ? 'The deadline has passed, so you cannot answer or edit.' : '受付期限が終了しているため、回答・修正はできません。');
       return;
     }
 
     if (!member?.game_id) {
-      alert('ログイン中のゲームIDが取得できませんでした。');
+      alert(lang === 'en' ? 'Logged-in game ID could not be retrieved.' : 'ログイン中のゲームIDが取得できませんでした。');
       return;
     }
 
@@ -237,10 +356,71 @@ export default function TalSurveyAnswerPage() {
     }
   };
 
+  const t = (text: string | null | undefined) => {
+    if (!text) return '';
+    if (lang === 'ja') return text;
+
+    if (lang === 'en') {
+      if (dict[text]) return dict[text];
+
+      // アンケートタイトルの英訳対応（(エントリー) や (ENTRY) などの括弧書きも含めて綺麗に置換）
+      if (text.includes('兵器リーグ参加アンケート')) {
+        let translatedTitle = text.replace(/兵器リーグ参加アンケート/g, 'Arms League Participation Survey');
+        translatedTitle = translatedTitle.replace(/\(エントリー\)/g, '(Entry)').replace(/\(ENTRY\)/g, '(Entry)');
+        return translatedTitle;
+      }
+
+      if (text === "受付終了") return "Closed";
+      if (text === "受付中") return "Active";
+      if (text === "回答送信完了") return "Submitted";
+      if (text === "回答期限: ") return "Deadline: ";
+      if (text === "✅ 回答が送信されました") return "✅ Response submitted successfully";
+      if (text === "ご回答ありがとうございます。以下の内容で登録されています。") return "Thank you for your response. It has been registered.";
+      if (text === "内容を修正する") return "Edit Response";
+      if (text === "あなたの回答内容") return "Your Response";
+      if (text === "回答ゲームID") return "Game ID";
+      if (text === "エントリー希望") return "Entry Preference";
+      if (text === "溶鉱炉Lv") return "Furnace Lv";
+      if (text === "部隊戦闘力") return "Combat Power";
+      if (text === "総力") return "Power";
+      if (text === "VC参加状況") return "VC Status";
+      if (text === "各日程の参加予定") return "Schedule per Date";
+      if (text === "兵士Lv") return "Soldier Lv";
+      if (text === "盾兵") return "Shield";
+      if (text === "槍兵") return "Spear";
+      if (text === "弓兵") return "Bow";
+      if (text === "キャンセルして結果に戻る") return "Cancel and Return";
+      if (text === "エントリー希望しますか") return "Would you like to enter?";
+      if (text === "*回答必須") return "*Required";
+      if (text === "① 希望する") return "① Yes";
+      if (text === "② 希望しない") return "② No";
+      if (text === "過去の回答でFC10を選択している場合、設問は表示されません。") return "This question is not displayed if FC10 was selected previously.";
+      if (text === "部隊戦闘力を入力してください。") return "Please enter your combat power.";
+      if (text === "例: 13000") return "e.g., 13000";
+      if (text === "それぞれの参加予定について回答してください。") return "Please answer your participation schedule for each date.";
+      if (text === "の予定") return "'s Schedule";
+      if (text === "④ 途中参加") return "④ Join midway";
+      if (text === "⑤ 不参加") return "⑤ Not participating";
+      if (text === "VC参加(聞き専含む)について回答してください。") return "Please answer regarding VC participation (including listen-only).";
+      if (text === "① 全部VC参加可能") return "① Full VC available";
+      if (text === "② 一部VC参加不可") return "② Partial VC unavailable";
+      if (text === "③ VC参加不可") return "③ No VC available";
+      if (text === "総力を入力してください。") return "Please enter your power.";
+      if (text === "例: 1.1") return "e.g., 1.1";
+      if (text === "兵士Lvを回答してください（SvS当日までに解放する場合は、解放予定後の兵士Lvで回答）") return "Please answer your Soldier Lv (if unlocking before SvS day, answer based on expected unlock)";
+      if (text === "保存中...") return "Saving...";
+      if (text === "回答を更新する") return "Update Response";
+      if (text === "回答を送信する") return "Submit Response";
+      if (text === "初戦の日付: ") return "First match date: ";
+    }
+
+    return dynamicTranslations[text] || text;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
-        <p className="text-sm text-slate-400">読み込み中...</p>
+        <p className="text-sm text-slate-400">{t("読み込み中...")}</p>
       </div>
     );
   }
@@ -248,27 +428,46 @@ export default function TalSurveyAnswerPage() {
   if (!survey) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
-        <p className="text-sm text-slate-400">アンケートが見つかりませんでした。</p>
+        <p className="text-sm text-slate-400">{t("アンケートが見つかりませんでした。")}</p>
       </div>
     );
   }
 
+  const formatDeadline = (dateStr: string) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+
+    if (lang === 'en') {
+      const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(d.getUTCDate()).padStart(2, '0');
+      const hh = String(d.getUTCHours()).padStart(2, '0');
+      const min = String(d.getUTCMinutes()).padStart(2, '0');
+      return `${mm}/${dd} ${hh}:${min} UTC`;
+    } else {
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${mm}/${dd} ${hh}:${min}`;
+    }
+  };
+
   const getScheduleLabel = (val: string) => {
     switch(val) {
-      case '1': return '① 21/23時フル参加';
-      case '2': return '② 21時のみフル参加';
-      case '3': return '③ 23時のみフル参加';
-      case '4': return '④ 途中参加';
-      case '5': return '⑤ 不参加';
+      case '1': return lang === 'en' ? '① Full 12/14' : '① 21/23時フル';
+      case '2': return lang === 'en' ? '② 12 only' : '② 21時のみ';
+      case '3': return lang === 'en' ? '③ 12 only' : '③ 23時のみ';
+      case '4': return t('④ 途中参加');
+      case '5': return t('⑤ 不参加');
       default: return val;
     }
   };
 
   const getVcLabel = (status: string) => {
     switch(status) {
-      case '1': return '① 全部VC参加可能';
-      case '2': return '② 一部VC参加不可';
-      case '3': return '③ VC参加不可';
+      case '1': return t('① 全部VC参加可能');
+      case '2': return t('② 一部VC参加不可');
+      case '3': return t('③ VC参加不可');
       default: return status;
     }
   };
@@ -285,21 +484,50 @@ export default function TalSurveyAnswerPage() {
                   ? 'bg-rose-950 text-rose-400 border-rose-800/50' 
                   : 'bg-cyan-950 text-cyan-400 border-cyan-800/50'
               }`}>
-                {isExpired ? '受付終了' : '受付中'}
+                {isExpired ? t("受付終了") : t("受付中")}
               </span>
               {hasResponded && !isEditing && (
                 <span className="px-2.5 py-1 bg-emerald-950 text-emerald-400 border border-emerald-800/50 rounded-lg text-xs font-semibold">
-                  回答送信完了
+                  {t("回答送信完了")}
                 </span>
               )}
             </div>
-            <span className="text-xs text-slate-400">
-              回答期限: {survey.deadline}
-            </span>
+            <div className="flex items-center gap-3">
+              <div className="flex bg-[#0b0f19] border border-slate-800 p-0.5 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => changeLang('ja')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                    lang === 'ja'
+                      ? 'bg-cyan-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  日本語
+                </button>
+                <button
+                  type="button"
+                  onClick={() => changeLang('en')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition cursor-pointer ${
+                    lang === 'en'
+                      ? 'bg-cyan-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  English
+                </button>
+              </div>
+
+              <span className="text-xs text-slate-400">
+                {t("回答期限: ")}{formatDeadline(survey.deadline)}
+              </span>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-white">{survey.title}</h1>
+          <h1 className="text-2xl font-bold text-white">{t(survey.title)}</h1>
           {survey.event_date && (
-            <p className="text-xs text-cyan-400">初戦の日付: {new Date(survey.event_date).toLocaleDateString('ja-JP')}</p>
+            <p className="text-xs text-cyan-400">
+              {t("初戦の日付: ")}{lang === 'en' ? new Date(survey.event_date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : new Date(survey.event_date).toLocaleDateString('ja-JP')}
+            </p>
           )}
         </div>
 
@@ -308,10 +536,10 @@ export default function TalSurveyAnswerPage() {
             <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-xl p-5 shadow-xl flex items-center justify-between flex-wrap gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                  <span>✅ 回答が送信されました</span>
+                  <span>{t("✅ 回答が送信されました")}</span>
                 </div>
                 <p className="text-xs text-slate-300">
-                  ご回答ありがとうございます。以下の内容で登録されています。
+                  {t("ご回答ありがとうございます。以下の内容で登録されています。")}
                 </p>
               </div>
 
@@ -321,57 +549,57 @@ export default function TalSurveyAnswerPage() {
                   onClick={() => setIsEditing(true)}
                   className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-medium transition shadow cursor-pointer"
                 >
-                  内容を修正する
+                  {t("内容を修正する")}
                 </button>
               )}
             </div>
 
             <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
               <h2 className="text-sm font-bold text-slate-200 border-b border-slate-800 pb-3">
-                あなたの回答内容
+                {t("あなたの回答内容")}
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
-                  <span className="text-slate-400">回答ゲームID</span>
+                  <span className="text-slate-400">{t("回答ゲームID")}</span>
                   <p className="font-mono font-bold text-cyan-400 text-sm">{member?.game_id}</p>
                 </div>
 
                 <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
-                  <span className="text-slate-400">エントリー希望</span>
+                  <span className="text-slate-400">{t("エントリー希望")}</span>
                   <p className="font-semibold text-white">
-                    {savedResponse?.entry_status === 'yes' ? '①希望する' : '②希望しない'}
+                    {savedResponse?.entry_status === 'yes' ? t('① 希望する') : t('② 希望しない')}
                   </p>
                 </div>
 
                 {savedResponse?.entry_status === 'yes' && (
                   <>
                     <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
-                      <span className="text-slate-400">溶鉱炉Lv</span>
+                      <span className="text-slate-400">{t("溶鉱炉Lv")}</span>
                       <p className="font-semibold text-white">{savedResponse?.fc_level || 'FC10 (自動)'}</p>
                     </div>
 
                     <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
-                      <span className="text-slate-400">部隊戦闘力</span>
+                      <span className="text-slate-400">{t("部隊戦闘力")}</span>
                       <p className="font-mono font-semibold text-white">{savedResponse?.combat_power || '-'}</p>
                     </div>
 
                     <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
-                      <span className="text-slate-400">総力</span>
+                      <span className="text-slate-400">{t("総力")}</span>
                       <p className="font-mono font-semibold text-white">{savedResponse?.current_power || '-'}</p>
                     </div>
 
                     <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
-                      <span className="text-slate-400">VC参加状況</span>
+                      <span className="text-slate-400">{t("VC参加状況")}</span>
                       <p className="font-semibold text-white">{getVcLabel(savedResponse?.vc_status)}</p>
                     </div>
 
                     <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-2 md:col-span-2">
-                      <span className="text-slate-400">各日程の参加予定</span>
+                      <span className="text-slate-400">{t("各日程の参加予定")}</span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-white">
                         {targetDates.map((dateStr, idx) => (
-                          <div key={dateStr} className="bg-[#151c2c] p-2 rounded border border-slate-700 text-[11px]">
-                            <span className="text-cyan-400 font-semibold">{dateStr}: </span>
+                          <div key={idx} className="bg-[#151c2c] p-2 rounded border border-slate-700 text-[11px]">
+                            <span className="text-cyan-400 font-semibold">{dateStr}{t("の予定")}: </span>
                             <span>{getScheduleLabel(savedResponse?.schedule_answers?.[idx])}</span>
                           </div>
                         ))}
@@ -380,18 +608,18 @@ export default function TalSurveyAnswerPage() {
 
                     {!(savedResponse?.shield_soldier === 'FC10T11' && savedResponse?.spear_soldier === 'FC10T11' && savedResponse?.bow_soldier === 'FC10T11') && (
                       <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-2 md:col-span-2">
-                        <span className="text-slate-400">兵士Lv</span>
+                        <span className="text-slate-400">{t("兵士Lv")}</span>
                         <div className="grid grid-cols-3 gap-2 text-white">
                           <div className="bg-[#151c2c] p-2 rounded border border-slate-700">
-                            <span className="text-[10px] text-slate-400 block">盾兵</span>
+                            <span className="text-[10px] text-slate-400 block">{t("盾兵")}</span>
                             <span className="font-semibold">{savedResponse?.shield_soldier || '-'}</span>
                           </div>
                           <div className="bg-[#151c2c] p-2 rounded border border-slate-700">
-                            <span className="text-[10px] text-slate-400 block">槍兵</span>
+                            <span className="text-[10px] text-slate-400 block">{t("槍兵")}</span>
                             <span className="font-semibold">{savedResponse?.spear_soldier || '-'}</span>
                           </div>
                           <div className="bg-[#151c2c] p-2 rounded border border-slate-700">
-                            <span className="text-[10px] text-slate-400 block">弓兵</span>
+                            <span className="text-[10px] text-slate-400 block">{t("弓兵")}</span>
                             <span className="font-semibold">{savedResponse?.bow_soldier || '-'}</span>
                           </div>
                         </div>
@@ -408,7 +636,7 @@ export default function TalSurveyAnswerPage() {
               
               <div className="flex items-center justify-between bg-[#0b0f19] border border-slate-800 p-4 rounded-xl text-xs">
                 <div>
-                  <span className="text-slate-400">回答中のゲームID: </span>
+                  <span className="text-slate-400">{t("回答中のゲームID: ")}</span>
                   <span className="font-mono font-bold text-cyan-400 text-sm">{member?.game_id}</span>
                 </div>
                 {hasResponded && (
@@ -417,19 +645,19 @@ export default function TalSurveyAnswerPage() {
                     onClick={() => setIsEditing(false)}
                     className="text-slate-400 hover:text-white underline text-xs cursor-pointer"
                   >
-                    キャンセルして結果に戻る
+                    {t("キャンセルして結果に戻る")}
                   </button>
                 )}
               </div>
 
               <div className="space-y-3">
                 <label className="block text-xs font-semibold text-slate-200">
-                  エントリー希望しますか <span className="text-rose-400">*回答必須</span>
+                  {t("エントリー希望しますか")} <span className="text-rose-400">{t("*回答必須")}</span>
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {[
-                    { id: 'yes', label: '① 希望する' },
-                    { id: 'no', label: '② 希望しない' },
+                    { id: 'yes', label: t('① 希望する') },
+                    { id: 'no', label: t('② 希望しない') },
                   ].map((item) => (
                     <button
                       type="button"
@@ -455,8 +683,8 @@ export default function TalSurveyAnswerPage() {
                   {member?.fc_level !== 'FC10' && (
                     <div className="space-y-2 pt-4 border-t border-slate-800">
                       <label className="block text-xs font-semibold text-slate-200">
-                        溶鉱炉Lvを回答してください。 <span className="text-rose-400">*回答必須</span>
-                        <span className="block text-[11px] text-slate-400 font-normal">過去の回答でFC10を選択している場合、設問は表示されません。</span>
+                        {t("溶鉱炉Lvを回答してください。")} <span className="text-rose-400">{t("*回答必須")}</span>
+                        <span className="block text-[11px] text-slate-400 font-normal">{t("過去の回答でFC10を選択している場合、設問は表示されません。")}</span>
                       </label>
                       <div className="relative">
                         <select
@@ -470,7 +698,7 @@ export default function TalSurveyAnswerPage() {
                           <option value="FC9">FC9</option>
                           <option value="FC8">FC8</option>
                           <option value="FC7">FC7</option>
-                          <option value="FC6以下">FC6以下</option>
+                          <option value="FC6以下">{t("FC6以下")}</option>
                         </select>
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
                       </div>
@@ -479,14 +707,14 @@ export default function TalSurveyAnswerPage() {
 
                   <div className="space-y-2 pt-4 border-t border-slate-800">
                     <label className="block text-xs font-semibold text-slate-200">
-                      部隊戦闘力を入力してください。 <span className="text-rose-400">*回答必須</span>
+                      {t("部隊戦闘力を入力してください。")} <span className="text-rose-400">{t("*回答必須")}</span>
                     </label>
                     <input
                       type="text"
                       disabled={isExpired}
                       value={combatPower}
                       onChange={(e) => setCombatPower(e.target.value)}
-                      placeholder="例: 13000"
+                      placeholder={t("例: 13000")}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono disabled:opacity-60"
                       required
                     />
@@ -494,19 +722,19 @@ export default function TalSurveyAnswerPage() {
 
                   <div className="space-y-4 pt-4 border-t border-slate-800">
                     <label className="block text-xs font-semibold text-slate-200">
-                      それぞれの参加予定について回答してください。 <span className="text-rose-400">*回答必須</span>
+                      {t("それぞれの参加予定について回答してください。")} <span className="text-rose-400">{t("*回答必須")}</span>
                     </label>
                     <div className="space-y-3 bg-[#0b0f19] p-4 rounded-xl border border-slate-800">
                       {targetDates.map((dateStr, idx) => (
-                        <div key={dateStr} className="space-y-1.5 pb-3 border-b border-slate-800/60 last:border-0 last:pb-0">
-                          <span className="text-xs font-semibold text-cyan-400">{dateStr} の予定</span>
+                        <div key={idx} className="space-y-1.5 pb-3 border-b border-slate-800/60 last:border-0 last:pb-0">
+                          <span className="text-xs font-semibold text-cyan-400">{dateStr} {t("の予定")}</span>
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                             {[
-                              { id: '1', label: '① 21/23時フル' },
-                              { id: '2', label: '② 21時のみ' },
-                              { id: '3', label: '③ 23時のみ' },
-                              { id: '4', label: '④ 途中参加' },
-                              { id: '5', label: '⑤ 不参加' },
+                              { id: '1', label: lang === 'en' ? '① Full 12/14' : '① 21/23時フル' },
+                              { id: '2', label: lang === 'en' ? '② 12 only' : '② 21時のみ' },
+                              { id: '3', label: lang === 'en' ? '③ 12 only' : '③ 23時のみ' },
+                              { id: '4', label: t('④ 途中参加') },
+                              { id: '5', label: t('⑤ 不参加') },
                             ].map((opt) => (
                               <button
                                 type="button"
@@ -532,13 +760,13 @@ export default function TalSurveyAnswerPage() {
 
                   <div className="space-y-3 pt-4 border-t border-slate-800">
                     <label className="block text-xs font-semibold text-slate-200">
-                      VC参加(聞き専含む)について回答してください。 <span className="text-rose-400">*回答必須</span>
+                      {t("VC参加(聞き専含む)について回答してください。")} <span className="text-rose-400">{t("*回答必須")}</span>
                     </label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {[
-                        { id: '1', label: '① 全部VC参加可能' },
-                        { id: '2', label: '② 一部VC参加不可' },
-                        { id: '3', label: '③ VC参加不可' },
+                        { id: '1', label: t('① 全部VC参加可能') },
+                        { id: '2', label: t('② 一部VC参加不可') },
+                        { id: '3', label: t('③ VC参加不可') },
                       ].map((item) => (
                         <button
                           type="button"
@@ -561,7 +789,7 @@ export default function TalSurveyAnswerPage() {
 
                   <div className="space-y-2 pt-4 border-t border-slate-800">
                     <label className="block text-xs font-semibold text-slate-200">
-                      総力を入力してください。 <span className="text-rose-400">*回答必須</span>
+                      {t("総力を入力してください。")} <span className="text-rose-400">{t("*回答必須")}</span>
                     </label>
                     <div className="flex gap-3">
                       <input
@@ -572,7 +800,7 @@ export default function TalSurveyAnswerPage() {
                           const val = e.target.value.replace(/[^0-9.]/g, '');
                           setPowerNum(val);
                         }}
-                        placeholder="例: 1.1"
+                        placeholder={t("例: 1.1")}
                         className="flex-1 bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono disabled:opacity-60"
                         required
                       />
@@ -591,15 +819,14 @@ export default function TalSurveyAnswerPage() {
                     </div>
                   </div>
 
-                  {/* 盾・槍・弓すべてが FC10T11 でない場合のみ兵士Lvを表示 */}
                   {!isAllFc10T11 && (
                     <div className="space-y-4 pt-4 border-t border-slate-800">
                       <p className="text-xs font-semibold text-slate-200">
-                        兵士Lvを回答してください（SvS当日までに解放する場合は、解放予定後の兵士Lvで回答） <span className="text-rose-400">*回答必須</span>
+                        {t("兵士Lvを回答してください（SvS当日までに解放する場合は、解放予定後の兵士Lvで回答）")} <span className="text-rose-400">{t("*回答必須")}</span>
                       </p>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400">・盾兵 <span className="text-rose-400">*</span></label>
+                        <label className="block text-[11px] text-slate-400">{t("・盾兵")} <span className="text-rose-400">*</span></label>
                         <div className="relative">
                           <select
                             disabled={isExpired}
@@ -625,7 +852,7 @@ export default function TalSurveyAnswerPage() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400">・槍兵 <span className="text-rose-400">*</span></label>
+                        <label className="block text-[11px] text-slate-400">{t("・槍兵")} <span className="text-rose-400">*</span></label>
                         <div className="relative">
                           <select
                             disabled={isExpired}
@@ -651,7 +878,7 @@ export default function TalSurveyAnswerPage() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400">・弓兵 <span className="text-rose-400">*</span></label>
+                        <label className="block text-[11px] text-slate-400">{t("・弓兵")} <span className="text-rose-400">*</span></label>
                         <div className="relative">
                           <select
                             disabled={isExpired}
@@ -687,7 +914,7 @@ export default function TalSurveyAnswerPage() {
                     disabled={submitting}
                     className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-medium transition shadow cursor-pointer disabled:opacity-50"
                   >
-                    {submitting ? '保存中...' : (hasResponded ? '回答を更新する' : '回答を送信する')}
+                    {submitting ? t('保存中...') : (hasResponded ? t('回答を更新する') : t('回答を送信する'))}
                   </button>
                 </div>
               )}

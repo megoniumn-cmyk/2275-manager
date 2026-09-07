@@ -1,8 +1,10 @@
+// app/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
+import { fetchDictionary } from '@/lib/translation';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,18 +26,35 @@ interface ActiveSurvey {
   title: string;
   deadline: string;
   match_time?: string;
-  target_restriction?: string; // 追加
+  target_restriction?: string;
 }
 
 export default function HomePage() {
+  const [lang, setLang] = useState<'ja' | 'en'>('ja');
+  const [dict, setDict] = useState<Record<string, string>>({});
+  const [dynamicTranslations, setDynamicTranslations] = useState<Record<string, string>>({});
+  
   const [pages, setPages] = useState<PageItem[]>([]);
   const [activeSurveys, setActiveSurveys] = useState<ActiveSurvey[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isDiscordUnlinked, setIsDiscordUnlinked] = useState(false);
   const [updatingDiscord, setUpdatingDiscord] = useState(false);
 
+  // 1. 初期ロード時
+  useEffect(() => {
+    const savedLang = localStorage.getItem('preferred_lang') as 'ja' | 'en';
+    if (savedLang) {
+      setLang(savedLang);
+    }
+
+    fetchDictionary().then((loadedDict) => {
+      setDict(loadedDict);
+    });
+  }, []);
+
+  // 2. ユーザーデータとアンケートの取得
   useEffect(() => {
     const fetchUserDataAndSurveys = async () => {
       try {
@@ -74,36 +93,11 @@ export default function HomePage() {
 
         if (profileData) {
           setUserProfile(profileData);
-
           const dId = profileData.discord_id;
           const unlinked = !dId || dId.startsWith('no_discord') || dId.startsWith('temp');
           setIsDiscordUnlinked(unlinked);
-
-          if (unlinked && supabaseUser) {
-            const newDiscordId = supabaseUser.user_metadata?.sub || supabaseUser.identities?.[0]?.id;
-            if (newDiscordId) {
-              const discordIdStr = String(newDiscordId);
-              
-              await supabase
-                .from('profiles')
-                .update({ discord_id: discordIdStr })
-                .eq('id', profileData.id);
-
-              if (profileData.game_id) {
-                await supabase
-                  .from('members')
-                  .update({ discord_id: discordIdStr })
-                  .eq('game_id', profileData.game_id);
-              }
-
-              profileData.discord_id = discordIdStr;
-              setUserProfile(profileData);
-              setIsDiscordUnlinked(false);
-            }
-          }
         }
 
-        // ログインユーザーのリーダー権限（members テーブルの leader フラグ）を判定するために取得
         let isUserLeader = false;
         if (profileData && profileData.game_id) {
           const { data: memberData } = await supabase
@@ -111,7 +105,7 @@ export default function HomePage() {
             .select('leader')
             .eq('game_id', profileData.game_id)
             .maybeSingle();
-          
+
           if (memberData && memberData.leader === true) {
             isUserLeader = true;
           }
@@ -162,54 +156,40 @@ export default function HomePage() {
           setPages(filtered);
         }
 
-        // --- 未回答かつ期限内のアンケートを取得 ---
         if (profileData) {
           const nowISO = new Date().toISOString();
-
-          const { data: surveysData, error: surveysError } = await supabase
+          const { data: surveysData } = await supabase
             .from('surveys_master')
             .select('*')
             .gt('deadline', nowISO)
             .order('deadline', { ascending: true });
 
-          if (!surveysError && surveysData) {
+          if (surveysData) {
             const unansweredSurveys: ActiveSurvey[] = [];
-
             for (const survey of surveysData) {
-              // ▼ 英雄スキルLv5などでリーダー専用の制限がある場合の判定
-              if (survey.target_restriction === 'non_leader_only' && isUserLeader) {
-                continue; // リーダーの場合は未回答リストに含めない
-              }
-
+              if (survey.target_restriction === 'non_leader_only' && isUserLeader) continue;
+              
               const tableName = getAnswerTableName(survey.survey_type);
               let hasAnswered = false;
 
-              // game_id で回答済みかチェック
               if (profileData.game_id && tableName) {
-                const { data: ansData, error: err } = await supabase
+                const { data: ansData } = await supabase
                   .from(tableName)
                   .select('survey_id')
                   .eq('survey_id', survey.id)
                   .eq('game_id', profileData.game_id)
                   .maybeSingle();
 
-                if (!err && ansData) {
-                  hasAnswered = true;
-                }
+                if (ansData) hasAnswered = true;
               }
 
-              // 回答データがない場合のみ未回答リストに追加
-              if (!hasAnswered) {
-                unansweredSurveys.push(survey);
-              }
+              if (!hasAnswered) unansweredSurveys.push(survey);
             }
-
             setActiveSurveys(unansweredSurveys);
           }
         }
-
       } catch (err) {
-        console.error('ホーム画面のデータ取得エラー:', err);
+        console.error('データ取得エラー:', err);
       } finally {
         setLoading(false);
       }
@@ -218,18 +198,95 @@ export default function HomePage() {
     fetchUserDataAndSurveys();
   }, []);
 
+  // 3. 一括翻訳処理
+  useEffect(() => {
+    if (lang === 'ja') return;
+
+    const baseTexts = [
+      "2275 MANAGER",
+      "同盟管理システムへようこそ",
+      "Discord連携が完了していません",
+      "正確な権限管理や通知のため、Discordアカウントとの連携を行ってください。",
+      "処理中...",
+      "🎮 Discord連携を行う",
+      "未回答",
+      "期限: ",
+      "回答する →",
+      "読み込み中...",
+      "アクセス可能なページがありません。",
+      "各機能の管理・詳細を行います。",
+      "画面を開く →",
+      "メンバーの基本情報を入力"
+    ];
+
+    const surveyTitles = activeSurveys.map(s => s.title).filter(Boolean);
+    const pageNames = pages.map(p => p.page_name).filter(Boolean);
+    const pageNotes = pages.map(p => p.note).filter(Boolean);
+
+    const textsToTranslate = Array.from(new Set([...baseTexts, ...surveyTitles, ...pageNames, ...pageNotes]));
+
+    let isMounted = true;
+
+    const translateBatch = async () => {
+      const newMap: Record<string, string> = { ...dynamicTranslations };
+      let hasNew = false;
+
+      for (const text of textsToTranslate) {
+        if (!text) continue;
+
+        if (dict[text]) {
+          newMap[text] = dict[text];
+          hasNew = true;
+          continue;
+        }
+
+        if (newMap[text]) continue;
+
+        try {
+          const res = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, lang }),
+          });
+          const data = await res.json();
+          if (data.translatedText) {
+            newMap[text] = data.translatedText;
+            hasNew = true;
+          }
+        } catch (e) {
+          console.error('Translation error:', e);
+        }
+      }
+
+      if (isMounted && hasNew) {
+        setDynamicTranslations({ ...newMap });
+      }
+    };
+
+    if (textsToTranslate.length > 0) {
+      translateBatch();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [lang, dict, activeSurveys, pages]);
+
+  const changeLang = (newLang: 'ja' | 'en') => {
+    localStorage.setItem('preferred_lang', newLang);
+    setLang(newLang);
+    window.dispatchEvent(new Event('preferred_lang_changed'));
+  };
+
   const handleLinkDiscord = async () => {
     try {
       setUpdatingDiscord(true);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
-        options: {
-          redirectTo: window.location.href,
-        },
+        options: { redirectTo: window.location.href },
       });
       if (error) throw error;
     } catch (err: any) {
-      console.error('Discord連携エラー:', err);
       alert(`Discord連携に失敗しました: ${err.message || '不明なエラー'}`);
       setUpdatingDiscord(false);
     }
@@ -267,58 +324,103 @@ export default function HomePage() {
     return `${mm}/${dd} ${hh}:${min}`;
   };
 
+  // 翻訳関数（1. 翻訳テーブル優先 -> 2. 個別ハードコード -> 3. 自動翻訳）
+  const t = (text: string | null | undefined) => {
+    if (!text) return '';
+    if (lang === 'ja') return text;
+
+    if (lang === 'en') {
+      // 1. 翻訳テーブルに登録があれば最優先で採用
+      if (dict[text]) {
+        return dict[text];
+      }
+
+      // 2. 個別のハードコードフォールバック（Discord is not connectedに変更）
+      if (text === '同盟管理システムへようこそ') return 'Welcome to the Alliance Management System';
+      if (text === 'Discord連携が完了していません') return 'Discord is not connected';
+      if (text === '正確な権限管理や通知のため、Discordアカウントとの連携を行ってください。') return 'Please connect your Discord account for accurate permission management and notifications.';
+      if (text === '処理中...') return 'Processing...';
+      if (text === '🎮 Discord連携を行う') return '🎮 Connect Discord';
+      if (text === '画面を開く →') return 'Open Screen →';
+      if (text === '未回答') return 'Unanswered';
+      if (text === '期限: ') return 'Deadline: ';
+      if (text === '回答する →') return 'Answer →';
+      
+      // アンケートタイトルのフォールバック例
+      if (text.includes('SvS参加アンケート')) return text.replace('SvS参加アンケート', 'SvS Participation Survey');
+      if (text.includes('英雄スキルLv5アンケート')) return text.replace('英雄スキルLv5アンケート', 'Hero Skill Lv5 Survey');
+    }
+
+    // 3. テーブルになければ自動翻訳結果、それもなければ元のテキストを返す
+    return dynamicTranslations[text] || text;
+  };
+
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col">
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8 flex flex-col gap-8">
+    <div className="w-full bg-[#0b0f19] text-slate-100 flex-1 flex flex-col">
+      <div className="max-w-7xl w-full mx-auto px-6 py-8 flex flex-col gap-8">
         
+        {/* 言語切替ボタン（カプセル型のトグルスイッチ） */}
+        <div className="flex justify-end">
+          <div className="flex bg-[#151c2c] border border-slate-800 rounded-xl p-1 shadow">
+            <button
+              onClick={() => changeLang('ja')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                lang === 'ja'
+                  ? 'bg-cyan-600 text-white shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              日本語
+            </button>
+            <button
+              onClick={() => changeLang('en')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                lang === 'en'
+                  ? 'bg-cyan-600 text-white shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              English
+            </button>
+          </div>
+        </div>
+
         <section className="bg-[#151c2c] border border-slate-800/80 rounded-2xl p-8 text-center shadow-xl">
           <h1 className="text-3xl font-extrabold tracking-tight text-white mb-2">
-            2275 MANAGER
+            {t("2275 MANAGER")}
           </h1>
           <p className="text-slate-400 text-sm md:text-base">
-            同盟管理システムへようこそ
+            {t("同盟管理システムへようこそ")}
           </p>
         </section>
 
         {!loading && isDiscordUnlinked && (
           <section className="bg-gradient-to-r from-indigo-950/40 via-[#151c2c] to-[#151c2c] border border-indigo-500/30 rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="flex h-3 w-3 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                </span>
-                <h2 className="text-sm font-bold text-indigo-300 tracking-wide uppercase">
-                  Discord連携が完了していません
-                </h2>
-              </div>
+              <h2 className="text-sm font-bold text-indigo-300 tracking-wide uppercase">
+                {t("Discord連携が完了していません")}
+              </h2>
               <p className="text-xs text-slate-400">
-                正確な権限管理や通知のため、Discordアカウントとの連携を行ってください。
+                {t("正確な権限管理や通知のため、Discordアカウントとの連携を行ってください。")}
               </p>
             </div>
-
             <button
               onClick={handleLinkDiscord}
               disabled={updatingDiscord}
-              className="px-5 py-2.5 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-xl text-xs font-bold transition shadow shrink-0 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              className="px-5 py-2.5 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-xl text-xs font-bold transition shadow shrink-0 cursor-pointer disabled:opacity-50"
             >
-              {updatingDiscord ? '処理中...' : '🎮 Discord連携を行う'}
+              {updatingDiscord ? t("処理中...") : t("🎮 Discord連携を行う")}
             </button>
           </section>
         )}
 
         {!loading && activeSurveys.length > 0 && (
           <section className="bg-gradient-to-r from-amber-950/40 via-[#151c2c] to-[#151c2c] border border-amber-500/30 rounded-2xl p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="flex h-3 w-3 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-              </span>
-              <h2 className="text-sm font-bold text-amber-300 tracking-wide uppercase">
-                回答済みでないアンケートがあります ({activeSurveys.length}件)
-              </h2>
-            </div>
-
+            <h2 className="text-sm font-bold text-amber-300 tracking-wide uppercase">
+              {lang === 'ja'
+                ? `回答済みでないアンケートがあります (${activeSurveys.length}件)`
+                : `You have unanswered surveys (${activeSurveys.length})`}
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {activeSurveys.map((survey) => (
                 <div
@@ -328,25 +430,19 @@ export default function HomePage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="px-2 py-0.5 bg-amber-950 text-amber-400 border border-amber-800/50 rounded text-[10px] font-semibold">
-                        未回答
+                        {t("未回答")}
                       </span>
                       <span className="text-[11px] text-slate-400">
-                        期限: {formatDeadline(survey.deadline)}
+                        {t("期限: ")}{formatDeadline(survey.deadline)}
                       </span>
-                      {survey.match_time && (
-                        <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px]">
-                          対戦時間: {survey.match_time}
-                        </span>
-                      )}
                     </div>
-                    <h3 className="text-sm font-bold text-white">{survey.title}</h3>
+                    <h3 className="text-sm font-bold text-white">{t(survey.title)}</h3>
                   </div>
-
                   <Link
                     href={getAnswerUrl(survey.survey_type, survey.id)}
                     className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold transition shadow shrink-0"
                   >
-                    回答する &rarr;
+                    {t("回答する →")}
                   </Link>
                 </div>
               ))}
@@ -356,10 +452,10 @@ export default function HomePage() {
 
         <section>
           {loading ? (
-            <div className="text-center py-12 text-slate-500">読み込み中...</div>
+            <div className="text-center py-12 text-slate-500">{t("読み込み中...")}</div>
           ) : pages.length === 0 ? (
             <div className="text-center py-12 text-slate-500 bg-[#151c2c]/50 rounded-xl border border-slate-800">
-              アクセス可能なページがありません。
+              {t("アクセス可能なページがありません。")}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -372,14 +468,14 @@ export default function HomePage() {
                   <div className="flex flex-col gap-2">
                     <h2 className="text-lg font-bold text-white group-hover:text-cyan-400 transition-colors flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
-                      {page.page_name}
+                      {t(page.page_name)}
                     </h2>
                     <p className="text-slate-400 text-xs md:text-sm line-clamp-2 min-h-[2rem]">
-                      {page.note || '各機能の管理・詳細を行います。'}
+                      {t(page.note) || t("各機能の管理・詳細を行います。")}
                     </p>
                   </div>
                   <div className="text-cyan-400 text-xs font-semibold flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                    画面を開く &rarr;
+                    {t("画面を開く →")}
                   </div>
                 </Link>
               ))}
@@ -387,7 +483,7 @@ export default function HomePage() {
           )}
         </section>
 
-      </main>
+      </div>
     </div>
   );
 }
