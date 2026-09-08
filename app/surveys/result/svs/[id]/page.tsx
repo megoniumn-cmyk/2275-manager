@@ -84,11 +84,10 @@ export default function SvsResultPage() {
 
   const [manualAllianceFilter, setManualAllianceFilter] = useState<string>('ALL');
   const [manualDiscordFilter, setManualDiscordFilter] = useState<string>('ALL');
+  const [manualStatusFilter, setManualStatusFilter] = useState<string>('ALL'); // 追加: 回答済み/未回答フィルタ
   const [manualSearchKeyword, setManualSearchKeyword] = useState<string>('');
 
-  // 編集モードを有効にしているゲームIDのセット
   const [editingGameIds, setEditingGameIds] = useState<Record<string, boolean>>({});
-
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const [isNotifyingDiscord, setIsNotifyingDiscord] = useState<boolean>(false);
 
@@ -132,12 +131,10 @@ export default function SvsResultPage() {
     fetchData();
   }, [surveyId]);
 
-  // 初期入力フォーム・編集用データのセットアップ
   useEffect(() => {
     const initialInputs: Record<string, ManualInputType> = {};
     members.forEach((m) => {
       if (m.game_id) {
-        // すでに回答データが存在する場合はその内容を初期値にする
         const existingResp = responses.find((r) => r.game_id === m.game_id);
         
         initialInputs[m.game_id] = {
@@ -224,7 +221,7 @@ export default function SvsResultPage() {
     const powerA = parsePowerToNumber(a.current_power);
     const powerB = parsePowerToNumber(b.current_power);
     if (powerA !== powerB) return powerB - powerA;
-    return a.name.localeCompare(b.name, 'ja');
+    return (a.name || '').localeCompare(b.name || '', 'ja');
   };
 
   const answeredGameIds = useMemo(() => new Set(responses.map((r) => r.game_id)), [responses]);
@@ -285,11 +282,15 @@ export default function SvsResultPage() {
         matchType = String(item.response_data?.participation_type) === typeFilter;
       }
 
-      const keyword = keywordFilter.toLowerCase();
+      // 安全に小文字化して検索（null対策）
+      const keyword = (keywordFilter || '').toLowerCase();
+      const nameStr = (item.name || '').toLowerCase();
+      const idStr = (item.game_id || '').toLowerCase();
+
       const matchSearch =
         !keyword ||
-        item.name.toLowerCase().includes(keyword) ||
-        item.game_id.toLowerCase().includes(keyword);
+        nameStr.includes(keyword) ||
+        idStr.includes(keyword);
 
       return matchAlliance && matchType && matchSearch;
     });
@@ -298,7 +299,7 @@ export default function SvsResultPage() {
   const filteredAnswered = useMemo(() => filterList(answeredMembers, selectedAlliance, searchKeyword, selectedParticipationType), [answeredMembers, selectedAlliance, searchKeyword, selectedParticipationType]);
   const filteredUnvotedTab1 = useMemo(() => filterList(unvotedMembers, selectedAlliance, searchKeyword), [unvotedMembers, selectedAlliance, searchKeyword]);
   
-  // 手動登録タブで表示するメンバー（未回答者 ＋ すでに回答済み（手動登録含む）のメンバーも含めて検索・編集できるように拡張）
+  // 手動登録タブ用のフィルタリング（回答済み/未回答フィルターを追加）
   const filteredManualList = useMemo(() => {
     const allTargetMembers = members.filter((m) => !(m.status && m.status.toLowerCase() === 'left'));
     
@@ -311,15 +312,27 @@ export default function SvsResultPage() {
         (manualDiscordFilter === 'HAS_DISCORD' && isValid) ||
         (manualDiscordFilter === 'NO_DISCORD' && !isValid);
 
-      const keyword = manualSearchKeyword.toLowerCase();
+      const isAnswered = answeredGameIds.has(item.game_id);
+      let matchStatus = true;
+      if (manualStatusFilter === 'ANSWERED') {
+        matchStatus = isAnswered;
+      } else if (manualStatusFilter === 'UNVOTED') {
+        matchStatus = !isAnswered;
+      }
+
+      // 安全に小文字化して検索（null対策）
+      const keyword = (manualSearchKeyword || '').toLowerCase();
+      const nameStr = (item.name || '').toLowerCase();
+      const idStr = (item.game_id || '').toLowerCase();
+
       const matchSearch =
         !keyword ||
-        item.name.toLowerCase().includes(keyword) ||
-        item.game_id.toLowerCase().includes(keyword);
+        nameStr.includes(keyword) ||
+        idStr.includes(keyword);
 
-      return matchAlliance && matchDiscord && matchSearch;
+      return matchAlliance && matchDiscord && matchStatus && matchSearch;
     });
-  }, [members, manualAllianceFilter, manualDiscordFilter, manualSearchKeyword]);
+  }, [members, manualAllianceFilter, manualDiscordFilter, manualStatusFilter, manualSearchKeyword, answeredGameIds]);
 
   const handleCopyNames = (type: 'answered' | 'unvoted') => {
     const targetList = type === 'answered' ? filteredAnswered : filteredUnvotedTab1;
@@ -504,7 +517,6 @@ export default function SvsResultPage() {
       const targetMember = members.find((m) => m.game_id === gameId);
       alert(`${targetMember?.name || gameId} さんの回答を保存しました！`);
       
-      // 保存後は編集モードを解除
       setEditingGameIds((prev) => ({ ...prev, [gameId]: false }));
       await fetchData();
     } catch (err: any) {
@@ -515,7 +527,6 @@ export default function SvsResultPage() {
     }
   };
 
-  // 登録された回答データを削除（未回答状態に戻す）する機能
   const handleDeleteResponse = async (gameId: string) => {
     const targetMember = members.find((m) => m.game_id === gameId);
     if (!confirm(`${targetMember?.name || gameId} さんの回答データを削除し、未回答の状態に戻しますか？`)) {
@@ -657,8 +668,8 @@ export default function SvsResultPage() {
                     className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:border-cyan-500"
                   >
                     <option value="ALL">すべて表示</option>
-                    <option value="1">① フル参加(移転時間込)</option>
-                    <option value="2">② フル参加(戦闘時間のみ)</option>
+                    <option value="1">① フル(移転時間込)</option>
+                    <option value="2">② フル(戦闘時間のみ)</option>
                     <option value="3">③ 途中参加</option>
                     <option value="4">④ 不参加</option>
                   </select>
@@ -870,9 +881,23 @@ export default function SvsResultPage() {
                     <option value="NO_DISCORD">未登録 (無効含む)</option>
                   </select>
                 </div>
+
+                {/* 追加: 回答済み/未回答フィルター */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 shrink-0">回答状態:</span>
+                  <select
+                    value={manualStatusFilter}
+                    onChange={(e) => setManualStatusFilter(e.target.value)}
+                    className="bg-[#151c2c] border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:border-cyan-500"
+                  >
+                    <option value="ALL">すべて表示</option>
+                    <option value="ANSWERED">回答済み</option>
+                    <option value="UNVOTED">未回答</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="w-full sm:w-80">
+              <div className="w-full sm:w-72">
                 <input
                   type="text"
                   placeholder="ユーザ名またはゲームIDで検索..."
