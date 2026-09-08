@@ -86,11 +86,15 @@ export default function SvsResultPage() {
   const [manualDiscordFilter, setManualDiscordFilter] = useState<string>('ALL');
   const [manualSearchKeyword, setManualSearchKeyword] = useState<string>('');
 
+  // 編集モードを有効にしているゲームIDのセット
+  const [editingGameIds, setEditingGameIds] = useState<Record<string, boolean>>({});
+
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const [isNotifyingDiscord, setIsNotifyingDiscord] = useState<boolean>(false);
 
   const [manualInputs, setManualInputs] = useState<Record<string, ManualInputType>>({});
   const [savingGameId, setSavingGameId] = useState<string | null>(null);
+  const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!surveyId) return;
@@ -128,31 +132,35 @@ export default function SvsResultPage() {
     fetchData();
   }, [surveyId]);
 
+  // 初期入力フォーム・編集用データのセットアップ
   useEffect(() => {
     const initialInputs: Record<string, ManualInputType> = {};
     members.forEach((m) => {
       if (m.game_id) {
+        // すでに回答データが存在する場合はその内容を初期値にする
+        const existingResp = responses.find((r) => r.game_id === m.game_id);
+        
         initialInputs[m.game_id] = {
-          participation_type: '',
-          slot_20: false,
-          slot_21: false,
-          slot_22: false,
-          slot_23: false,
-          slot_24: false,
-          slot_25: false,
-          time_slot_memo: '',
-          vc_status: '',
-          vc_memo: '',
-          snapshot_fc_level: m.fc_level ? String(m.fc_level) : 'FC6以下',
-          snapshot_power: m.current_power ? String(m.current_power) : '',
-          snapshot_shield_soldier: m.shield_soldier ? String(m.shield_soldier) : 'FC6T10以下',
-          snapshot_spear_soldier: m.spear_soldier ? String(m.spear_soldier) : 'FC6T10以下',
-          snapshot_bow_soldier: m.bow_soldier ? String(m.bow_soldier) : 'FC6T10以下',
+          participation_type: existingResp ? String(existingResp.participation_type || '') : '',
+          slot_20: existingResp ? !!existingResp.slot_20 : false,
+          slot_21: existingResp ? !!existingResp.slot_21 : false,
+          slot_22: existingResp ? !!existingResp.slot_22 : false,
+          slot_23: existingResp ? !!existingResp.slot_23 : false,
+          slot_24: existingResp ? !!existingResp.slot_24 : false,
+          slot_25: existingResp ? !!existingResp.slot_25 : false,
+          time_slot_memo: existingResp?.time_slot_memo ? String(existingResp.time_slot_memo) : '',
+          vc_status: existingResp?.vc_status != null ? String(existingResp.vc_status) : '',
+          vc_memo: existingResp?.vc_memo ? String(existingResp.vc_memo) : '',
+          snapshot_fc_level: existingResp?.snapshot_fc_level ? String(existingResp.snapshot_fc_level) : (m.fc_level ? String(m.fc_level) : 'FC6以下'),
+          snapshot_power: existingResp?.snapshot_power ? String(existingResp.snapshot_power) : (m.current_power ? String(m.current_power) : ''),
+          snapshot_shield_soldier: existingResp?.snapshot_shield_soldier ? String(existingResp.snapshot_shield_soldier) : (m.shield_soldier ? String(m.shield_soldier) : 'FC6T10以下'),
+          snapshot_spear_soldier: existingResp?.snapshot_spear_soldier ? String(existingResp.snapshot_spear_soldier) : (m.spear_soldier ? String(m.spear_soldier) : 'FC6T10以下'),
+          snapshot_bow_soldier: existingResp?.snapshot_bow_soldier ? String(existingResp.snapshot_bow_soldier) : (m.bow_soldier ? String(m.bow_soldier) : 'FC6T10以下'),
         };
       }
     });
     setManualInputs(initialInputs);
-  }, [members]);
+  }, [members, responses]);
 
   const hasValidDiscordId = (discordId?: string | null): boolean => {
     if (!discordId) return false;
@@ -290,8 +298,11 @@ export default function SvsResultPage() {
   const filteredAnswered = useMemo(() => filterList(answeredMembers, selectedAlliance, searchKeyword, selectedParticipationType), [answeredMembers, selectedAlliance, searchKeyword, selectedParticipationType]);
   const filteredUnvotedTab1 = useMemo(() => filterList(unvotedMembers, selectedAlliance, searchKeyword), [unvotedMembers, selectedAlliance, searchKeyword]);
   
-  const filteredUnvotedManual = useMemo(() => {
-    return unvotedMembers.filter((item) => {
+  // 手動登録タブで表示するメンバー（未回答者 ＋ すでに回答済み（手動登録含む）のメンバーも含めて検索・編集できるように拡張）
+  const filteredManualList = useMemo(() => {
+    const allTargetMembers = members.filter((m) => !(m.status && m.status.toLowerCase() === 'left'));
+    
+    return allTargetMembers.filter((item) => {
       const matchAlliance = manualAllianceFilter === 'ALL' || item.alliance === manualAllianceFilter;
       
       const isValid = hasValidDiscordId(item.discord_id);
@@ -308,7 +319,7 @@ export default function SvsResultPage() {
 
       return matchAlliance && matchDiscord && matchSearch;
     });
-  }, [unvotedMembers, manualAllianceFilter, manualDiscordFilter, manualSearchKeyword]);
+  }, [members, manualAllianceFilter, manualDiscordFilter, manualSearchKeyword]);
 
   const handleCopyNames = (type: 'answered' | 'unvoted') => {
     const targetList = type === 'answered' ? filteredAnswered : filteredUnvotedTab1;
@@ -491,13 +502,44 @@ export default function SvsResultPage() {
       }
 
       const targetMember = members.find((m) => m.game_id === gameId);
-      alert(`${targetMember?.name || gameId} さんの回答を手動登録しました！`);
+      alert(`${targetMember?.name || gameId} さんの回答を保存しました！`);
+      
+      // 保存後は編集モードを解除
+      setEditingGameIds((prev) => ({ ...prev, [gameId]: false }));
       await fetchData();
     } catch (err: any) {
-      console.error('手動登録エラー:', err);
-      alert(`手動登録に失敗しました: ${err?.message || JSON.stringify(err)}`);
+      console.error('保存エラー:', err);
+      alert(`保存に失敗しました: ${err?.message || JSON.stringify(err)}`);
     } finally {
       setSavingGameId(null);
+    }
+  };
+
+  // 登録された回答データを削除（未回答状態に戻す）する機能
+  const handleDeleteResponse = async (gameId: string) => {
+    const targetMember = members.find((m) => m.game_id === gameId);
+    if (!confirm(`${targetMember?.name || gameId} さんの回答データを削除し、未回答の状態に戻しますか？`)) {
+      return;
+    }
+
+    setDeletingGameId(gameId);
+    try {
+      const { error } = await supabase
+        .from('survey_responses_svs')
+        .delete()
+        .eq('survey_id', surveyId)
+        .eq('game_id', gameId);
+
+      if (error) throw error;
+
+      alert(`${targetMember?.name || gameId} さんの回答を削除しました。`);
+      setEditingGameIds((prev) => ({ ...prev, [gameId]: false }));
+      await fetchData();
+    } catch (err: any) {
+      console.error('削除エラー:', err);
+      alert(`削除に失敗しました: ${err?.message || JSON.stringify(err)}`);
+    } finally {
+      setDeletingGameId(null);
     }
   };
 
@@ -582,9 +624,9 @@ export default function SvsResultPage() {
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            ✍️ 未回答者の個別一括手動登録 
+            ✍️ メンバー回答一括管理・手動登録/編集
             <span className="px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-800/50 rounded text-[10px]">
-              {unvotedMembers.length}名
+              未回答 {unvotedMembers.length}名
             </span>
           </button>
         </div>
@@ -792,12 +834,12 @@ export default function SvsResultPage() {
           <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
               <div>
-                <h2 className="text-sm font-bold text-cyan-400">✍️ 未回答者のテーブル形式 一覧手動登録</h2>
+                <h2 className="text-sm font-bold text-cyan-400">✍️ メンバー回答一括管理・手動登録/編集</h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  未回答ユーザーの情報を直接入力して、テーブルから一括で登録できます。
+                  未回答者の新規登録はもちろん、すでに回答済み（手動登録含む）のメンバーのデータをここで「編集」または「削除（未回答に戻す）」できます。
                 </p>
               </div>
-              <span className="text-xs text-rose-400 font-semibold">未回答者（絞込後）: {filteredUnvotedManual.length} / {unvotedMembers.length} 名</span>
+              <span className="text-xs text-slate-300 font-semibold">表示中: {filteredManualList.length} 名</span>
             </div>
 
             <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -845,7 +887,7 @@ export default function SvsResultPage() {
               <table className="w-full text-left text-xs border-collapse min-w-[1250px]">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400 bg-[#0b0f19]">
-                    <th className="p-3 font-semibold w-48">メンバー名 / 同盟</th>
+                    <th className="p-3 font-semibold w-48">メンバー名 / 同盟 / 状態</th>
                     <th className="p-3 font-semibold w-36">参加予定時間</th>
                     <th className="p-3 font-semibold w-44">参加可能時間(台)</th>
                     <th className="p-3 font-semibold w-36">備考(時間)</th>
@@ -854,19 +896,22 @@ export default function SvsResultPage() {
                     <th className="p-3 font-semibold w-28">溶鉱炉 / FC</th>
                     <th className="p-3 font-semibold w-28">総力</th>
                     <th className="p-3 font-semibold w-36">兵士Lv (盾/槍/弓)</th>
-                    <th className="p-3 font-semibold text-center w-20">操作</th>
+                    <th className="p-3 font-semibold text-center w-36">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {filteredUnvotedManual.length === 0 ? (
+                  {filteredManualList.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="text-center py-12 text-slate-500">
-                        該当する未回答者はいません 🎉
+                        該当するメンバーはいません
                       </td>
                     </tr>
                   ) : (
-                    filteredUnvotedManual.map((m, index) => {
+                    filteredManualList.map((m, index) => {
                       const rowKey = m.game_id ? `manual-row-${m.game_id}` : `manual-row-idx-${index}`;
+                      const isAnswered = answeredGameIds.has(m.game_id);
+                      const isEditing = !!editingGameIds[m.game_id];
+
                       const inputState = manualInputs[m.game_id] || {
                         participation_type: '',
                         slot_20: false,
@@ -885,12 +930,24 @@ export default function SvsResultPage() {
                         snapshot_bow_soldier: 'FC6T10以下',
                       };
                       const isSaving = savingGameId === m.game_id;
+                      const isDeleting = deletingGameId === m.game_id;
 
                       return (
                         <tr key={rowKey} className="hover:bg-slate-900/40 transition align-top">
                           <td className="p-3">
-                            <div className="font-bold text-white">{m.name}</div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className="font-bold text-white flex items-center gap-2">
+                              {m.name}
+                              {isAnswered ? (
+                                <span className="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800/50 rounded text-[9px]">
+                                  回答済み
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-800/50 rounded text-[9px]">
+                                  未回答
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1">
                               {m.alliance && (
                                 <span className="px-1.5 py-0.2 bg-slate-800 text-slate-300 rounded text-[10px]">
                                   {m.alliance}
@@ -901,17 +958,23 @@ export default function SvsResultPage() {
                           </td>
 
                           <td className="p-3">
-                            <select
-                              value={inputState.participation_type ?? ''}
-                              onChange={(e) => handleParticipationTypeChange(m.game_id, e.target.value)}
-                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
-                            >
-                              <option value="">- (未選択)</option>
-                              <option value="1">① フル(移転込)</option>
-                              <option value="2">② フル(戦闘のみ)</option>
-                              <option value="3">③ 途中参加</option>
-                              <option value="4">④ 不参加</option>
-                            </select>
+                            {isAnswered && !isEditing ? (
+                              <div className="py-2 text-cyan-300 font-medium">
+                                {getParticipationLabel(inputState.participation_type)}
+                              </div>
+                            ) : (
+                              <select
+                                value={inputState.participation_type ?? ''}
+                                onChange={(e) => handleParticipationTypeChange(m.game_id, e.target.value)}
+                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
+                              >
+                                <option value="">- (未選択)</option>
+                                <option value="1">① フル(移転込)</option>
+                                <option value="2">② フル(戦闘のみ)</option>
+                                <option value="3">③ 途中参加</option>
+                                <option value="4">④ 不参加</option>
+                              </select>
+                            )}
                           </td>
 
                           <td className="p-3">
@@ -925,10 +988,12 @@ export default function SvsResultPage() {
                                 { key: 'slot_25', label: '25:00台' },
                               ].map((slotObj) => {
                                 const slotKey = slotObj.key as keyof ManualInputType;
+                                const isDisabled = isAnswered && !isEditing;
                                 return (
-                                  <label key={slotObj.key} className="flex items-center gap-1 text-slate-300 cursor-pointer">
+                                  <label key={slotObj.key} className={`flex items-center gap-1 text-slate-300 ${isDisabled ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}>
                                     <input
                                       type="checkbox"
+                                      disabled={isDisabled}
                                       checked={!!inputState[slotKey]}
                                       onChange={(e) => handleInputChange(m.game_id, slotKey, e.target.checked)}
                                       className="rounded border-slate-700 bg-[#0b0f19] text-cyan-500 focus:ring-0"
@@ -943,57 +1008,70 @@ export default function SvsResultPage() {
                           <td className="p-3">
                             <input
                               type="text"
+                              disabled={isAnswered && !isEditing}
                               value={inputState.time_slot_memo ?? ''}
                               onChange={(e) => handleInputChange(m.game_id, 'time_slot_memo', e.target.value)}
                               placeholder="例: 12時半から"
-                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
+                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full disabled:opacity-70"
                             />
                           </td>
 
                           <td className="p-3">
-                            <select
-                              value={inputState.vc_status ?? ''}
-                              onChange={(e) => handleInputChange(m.game_id, 'vc_status', e.target.value)}
-                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
-                            >
-                              <option value="">- (未選択)</option>
-                              <option value="1">① VCフル</option>
-                              <option value="2">② 一部のみ</option>
-                              <option value="3">③ VC不参加</option>
-                            </select>
+                            {isAnswered && !isEditing ? (
+                              <div className="py-2 text-slate-300">
+                                {inputState.vc_status === '1' ? '① VCフル' : inputState.vc_status === '2' ? '② 一部のみ' : inputState.vc_status === '3' ? '③ 不参加' : '-'}
+                              </div>
+                            ) : (
+                              <select
+                                value={inputState.vc_status ?? ''}
+                                onChange={(e) => handleInputChange(m.game_id, 'vc_status', e.target.value)}
+                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
+                              >
+                                <option value="">- (未選択)</option>
+                                <option value="1">① VCフル</option>
+                                <option value="2">② 一部のみ</option>
+                                <option value="3">③ VC不参加</option>
+                              </select>
+                            )}
                           </td>
 
                           <td className="p-3">
                             <input
                               type="text"
+                              disabled={isAnswered && !isEditing}
                               value={inputState.vc_memo ?? ''}
                               onChange={(e) => handleInputChange(m.game_id, 'vc_memo', e.target.value)}
                               placeholder="例: 聞き専"
-                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
+                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full disabled:opacity-70"
                             />
                           </td>
 
                           <td className="p-3">
-                            <select
-                              value={inputState.snapshot_fc_level ?? 'FC6以下'}
-                              onChange={(e) => handleInputChange(m.game_id, 'snapshot_fc_level', e.target.value)}
-                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
-                            >
-                              <option value="FC6以下">FC6以下</option>
-                              <option value="FC7">FC7</option>
-                              <option value="FC8">FC8</option>
-                              <option value="FC9">FC9</option>
-                              <option value="FC10">FC10</option>
-                            </select>
+                            {isAnswered && !isEditing ? (
+                              <div className="py-2 text-slate-300">{inputState.snapshot_fc_level}</div>
+                            ) : (
+                              <select
+                                value={inputState.snapshot_fc_level ?? 'FC6以下'}
+                                onChange={(e) => handleInputChange(m.game_id, 'snapshot_fc_level', e.target.value)}
+                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
+                              >
+                                <option value="FC6以下">FC6以下</option>
+                                <option value="FC7">FC7</option>
+                                <option value="FC8">FC8</option>
+                                <option value="FC9">FC9</option>
+                                <option value="FC10">FC10</option>
+                              </select>
+                            )}
                           </td>
 
                           <td className="p-3">
                             <input
                               type="text"
+                              disabled={isAnswered && !isEditing}
                               value={inputState.snapshot_power ?? ''}
                               onChange={(e) => handleInputChange(m.game_id, 'snapshot_power', e.target.value)}
                               placeholder="110.9M"
-                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full"
+                              className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg p-2 outline-none focus:border-cyan-500 w-full disabled:opacity-70"
                             />
                           </td>
 
@@ -1001,62 +1079,108 @@ export default function SvsResultPage() {
                             <div className="flex items-center gap-1">
                               <span className="text-[10px] text-slate-400 w-6 shrink-0">盾:</span>
                               <select
+                                disabled={isAnswered && !isEditing}
                                 value={inputState.snapshot_shield_soldier ?? 'FC6T10以下'}
                                 onChange={(e) => handleInputChange(m.game_id, 'snapshot_shield_soldier', e.target.value)}
-                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-[10px] rounded p-1 outline-none w-full"
+                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-[10px] rounded p-1 outline-none w-full disabled:opacity-70"
                               >
                                 <option value="FC10T11">FC10T11</option>
+                                <option value="FC9T11">FC9T11</option>
                                 <option value="FC8T11">FC8T11</option>
                                 <option value="FC7T11">FC7T11</option>
                                 <option value="FC6T11">FC6T11</option>
                                 <option value="FC5T11">FC5T11</option>
                                 <option value="FC10T10">FC10T10</option>
+                                <option value="FC9T10">FC9T10</option>
+                                <option value="FC8T10">FC8T10</option>
+                                <option value="FC7T10">FC7T10</option>
                                 <option value="FC6T10以下">FC6T10以下</option>
                               </select>
                             </div>
                             <div className="flex items-center gap-1">
                               <span className="text-[10px] text-slate-400 w-6 shrink-0">槍:</span>
                               <select
+                                disabled={isAnswered && !isEditing}
                                 value={inputState.snapshot_spear_soldier ?? 'FC6T10以下'}
                                 onChange={(e) => handleInputChange(m.game_id, 'snapshot_spear_soldier', e.target.value)}
-                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-[10px] rounded p-1 outline-none w-full"
+                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-[10px] rounded p-1 outline-none w-full disabled:opacity-70"
                               >
                                 <option value="FC10T11">FC10T11</option>
+                                <option value="FC9T11">FC9T11</option>
                                 <option value="FC8T11">FC8T11</option>
                                 <option value="FC7T11">FC7T11</option>
                                 <option value="FC6T11">FC6T11</option>
                                 <option value="FC5T11">FC5T11</option>
                                 <option value="FC10T10">FC10T10</option>
+                                <option value="FC9T10">FC9T10</option>
+                                <option value="FC8T10">FC8T10</option>
+                                <option value="FC7T10">FC7T10</option>
                                 <option value="FC6T10以下">FC6T10以下</option>
                               </select>
                             </div>
                             <div className="flex items-center gap-1">
                               <span className="text-[10px] text-slate-400 w-6 shrink-0">弓:</span>
                               <select
+                                disabled={isAnswered && !isEditing}
                                 value={inputState.snapshot_bow_soldier ?? 'FC6T10以下'}
                                 onChange={(e) => handleInputChange(m.game_id, 'snapshot_bow_soldier', e.target.value)}
-                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-[10px] rounded p-1 outline-none w-full"
+                                className="bg-[#0b0f19] border border-slate-700 text-slate-200 text-[10px] rounded p-1 outline-none w-full disabled:opacity-70"
                               >
                                 <option value="FC10T11">FC10T11</option>
+                                <option value="FC9T11">FC9T11</option>
                                 <option value="FC8T11">FC8T11</option>
                                 <option value="FC7T11">FC7T11</option>
                                 <option value="FC6T11">FC6T11</option>
                                 <option value="FC5T11">FC5T11</option>
                                 <option value="FC10T10">FC10T10</option>
+                                <option value="FC9T10">FC9T10</option>
+                                <option value="FC8T10">FC8T10</option>
+                                <option value="FC7T10">FC7T10</option>
                                 <option value="FC6T10以下">FC6T10以下</option>
                               </select>
                             </div>
                           </td>
 
-                          <td className="p-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleSaveRow(m.game_id)}
-                              disabled={isSaving}
-                              className="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-cyan-900 text-white rounded-lg font-semibold transition shrink-0"
-                            >
-                              {isSaving ? '登録中...' : '登録'}
-                            </button>
+                          <td className="p-3 text-center align-middle">
+                            {isAnswered && !isEditing ? (
+                              <div className="flex flex-col gap-1.5 items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingGameIds((prev) => ({ ...prev, [m.game_id]: true }))}
+                                  className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-[11px] font-semibold transition w-full"
+                                >
+                                  ✏️ 編集
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteResponse(m.game_id)}
+                                  disabled={isDeleting}
+                                  className="px-2.5 py-1 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/50 rounded text-[11px] font-semibold transition w-full"
+                                >
+                                  {isDeleting ? '削除中...' : '🗑️ 削除'}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-1.5 items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveRow(m.game_id)}
+                                  disabled={isSaving}
+                                  className="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-cyan-900 text-white rounded-lg font-semibold transition w-full text-xs"
+                                >
+                                  {isSaving ? '保存中...' : (isEditing ? '更新保存' : '登録')}
+                                </button>
+                                {isEditing && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingGameIds((prev) => ({ ...prev, [m.game_id]: false }))}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] transition w-full"
+                                  >
+                                    キャンセル
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );

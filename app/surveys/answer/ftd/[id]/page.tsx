@@ -660,7 +660,7 @@ export default function FtdSurveyAnswerPage() {
                           <option value="FC9">FC9</option>
                           <option value="FC8">FC8</option>
                           <option value="FC7">FC7</option>
-                          <option value="FC6以上">FC6以下</option>
+                          <option value="FC6以下">FC6以下</option>
                         </select>
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
                       </div>
