@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, memo } from 'react';
+import { useEffect, useState, memo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import html2canvas from 'html2canvas';
 
 interface TransferItem {
   id?: string;
@@ -118,7 +119,7 @@ const AllianceListModal = memo(({
               value={newAllianceName}
               onChange={(e) => setNewAllianceName(e.target.value)}
               className="w-full bg-[#151c2c] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500"
-              placeholder="UTP"
+              placeholder=""
             />
           </div>
           <button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold transition h-[34px]">
@@ -161,6 +162,65 @@ const AllianceListModal = memo(({
   );
 });
 AllianceListModal.displayName = 'AllianceListModal';
+
+// 画像エクスポート用モーダル
+const ExportModal = ({
+  isOpen,
+  onClose,
+  transferOptions,
+  onExport
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  transferOptions: { label: string }[];
+  onExport: (period: string) => void;
+}) => {
+  const [selectedPeriod, setSelectedPeriod] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleExecute = () => {
+    if (!selectedPeriod) {
+      alert('移民時期を選択してください。');
+      return;
+    }
+    onExport(selectedPeriod);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#151c2c] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h2 className="text-base font-bold text-white">移民リスト画像エクスポート</h2>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕</button>
+        </div>
+
+        <div className="space-y-3 text-xs">
+          <div>
+            <label className="block text-slate-400 mb-1.5">エクスポートする移民時期を選択 <span className="text-rose-500">*</span></label>
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-cyan-500"
+            >
+              <option value="">- 選択してください -</option>
+              {transferOptions.map((opt, idx) => (
+                <option key={idx} value={opt.label}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition text-xs">キャンセル</button>
+          <button type="button" onClick={handleExecute} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-950 text-xs">
+            画像として保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // 新規登録・編集用モーダル
 const MemberModal = ({
@@ -341,8 +401,11 @@ export default function TransferManagementPage() {
   const [selectedPeriodFilter, setSelectedPeriodFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAllianceModalOpen, setIsAllianceModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   
   const [editingItem, setEditingItem] = useState<TransferItem>(initialFormState);
+  const exportTableRef = useRef<HTMLDivElement>(null);
+  const [exportTargetPeriod, setExportTargetPeriod] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -519,6 +582,33 @@ export default function TransferManagementPage() {
     alert(`${successCount}件のメンバー情報をmembersテーブルに反映しました。`);
   };
 
+  const handleExecuteExport = async (period: string) => {
+    setExportTargetPeriod(period);
+    setIsExportModalOpen(false);
+
+    setTimeout(async () => {
+      if (!exportTableRef.current) return;
+      try {
+        const canvas = await html2canvas(exportTableRef.current, {
+          backgroundColor: '#0b0f19',
+          scale: 2,
+          logging: false,
+          useCORS: true,
+        });
+        const image = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = image;
+        link.download = `移民リスト_${period}.png`;
+        link.click();
+      } catch (err) {
+        console.error('Failed to export image:', err);
+        alert('画像の出力に失敗しました。');
+      } finally {
+        setExportTargetPeriod(null);
+      }
+    }, 150);
+  };
+
   const filteredItems = items.filter(item => {
     const keyword = searchKeyword.toLowerCase();
     const name = String(item.game_account_name || '').toLowerCase();
@@ -531,6 +621,10 @@ export default function TransferManagementPage() {
     return matchesKeyword && matchesPeriod;
   });
 
+  const exportFilteredItems = exportTargetPeriod
+    ? items.filter(i => i.transfer_period === exportTargetPeriod)
+    : [];
+
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-6 flex flex-col">
       <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-6 shadow-xl mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -542,12 +636,18 @@ export default function TransferManagementPage() {
             移民予定メンバーの一覧確認、詳細データの編集、新規追加を行います。
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={handleRegisterToMembers}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-900/40 flex items-center gap-1.5 shrink-0"
           >
             <span>👥</span> 選択したメンバーを登録
+          </button>
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-950 flex items-center gap-1.5 shrink-0"
+          >
+            <span>📷</span> 画像Export
           </button>
           <button
             onClick={() => setIsAllianceModalOpen(true)}
@@ -714,6 +814,65 @@ export default function TransferManagementPage() {
         </table>
       </div>
 
+      {exportTargetPeriod && (
+        <div className="absolute -top-[9999px] left-0 pointer-events-none">
+          <div ref={exportTableRef} style={{ backgroundColor: '#0b0f19', color: '#f8fafc', padding: '24px', width: '1600px' }}>
+            <div style={{ marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>📋 移民予定リスト</h2>
+              <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>移民時期: {exportTargetPeriod}</p>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #1e293b', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#151c2c', color: '#94a3b8', fontSize: '11px', borderBottom: '1px solid #1e293b' }}>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>サーバー</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>アカウント名</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>ステータス</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>同盟名</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>ゲームID</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>FC</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>盾兵</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>槍兵</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>弓兵</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>総力(後)</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>総力(前)</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>招待枠</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>同盟(移民後)</th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>備考</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exportFilteredItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={14} style={{ textAlign: 'center', padding: '24px', color: '#64748b', backgroundColor: '#0b0f19' }}>
+                      該当するデータがありません
+                    </td>
+                  </tr>
+                ) : (
+                  exportFilteredItems.map((item, idx) => (
+                    <tr key={idx} style={{ backgroundColor: '#0b0f19', borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.server_name || '-'}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#ffffff' }}>{item.game_account_name || '-'}</td>
+                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.status || '-'}</td>
+                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.alliance_name || '-'}</td>
+                      <td style={{ padding: '12px', fontFamily: 'monospace', color: '#94a3b8' }}>{item.game_id || '-'}</td>
+                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.fc || '-'}</td>
+                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.shield_soldier || '-'}</td>
+                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.spear_soldier || '-'}</td>
+                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.bow_soldier || '-'}</td>
+                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.power_after || '-'}</td>
+                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.power_before || '-'}</td>
+                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.invitation_slot || '-'}</td>
+                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.alliance_after || '-'}</td>
+                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.remarks || '-'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <MemberModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -730,6 +889,13 @@ export default function TransferManagementPage() {
         onClose={() => setIsAllianceModalOpen(false)}
         allianceItems={allianceListRecords}
         onRefresh={fetchAllianceList}
+      />
+
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        transferOptions={transferOptions}
+        onExport={handleExecuteExport}
       />
     </div>
   );
