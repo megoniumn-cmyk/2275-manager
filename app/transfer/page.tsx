@@ -286,8 +286,11 @@ const MemberModal = ({
               </select>
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">総力(削減前) <span className="text-rose-500">*</span></label>
-              <input type="text" required value={item.power_before || ''} onChange={(e) => setItem(prev => ({ ...prev, power_before: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
+              <label className="block text-slate-400 mb-1">ステータス <span className="text-rose-500">*</span></label>
+              <select required value={item.status || ''} onChange={(e) => setItem(prev => ({ ...prev, status: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
+                <option value="">- (未選択)</option>
+                {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
             </div>
           </div>
 
@@ -317,31 +320,28 @@ const MemberModal = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-400 mb-1">総力(削減後)</label>
-              <input type="text" value={item.power_after || ''} onChange={(e) => setItem(prev => ({ ...prev, power_after: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
+              <label className="block text-slate-400 mb-1">総力(削減前) <span className="text-rose-500">*</span></label>
+              <input type="text" required value={item.power_before || ''} onChange={(e) => setItem(prev => ({ ...prev, power_before: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">移民時期 <span className="text-rose-500">*</span></label>
-              <select required value={item.transfer_period || ''} onChange={(e) => setItem(prev => ({ ...prev, transfer_period: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
-                <option value="">- (未選択)</option>
-                {transferOptions.map((opt, idx) => <option key={idx} value={opt.label}>{opt.label}</option>)}
-              </select>
+              <label className="block text-slate-400 mb-1">総力(削減後)</label>
+              <input type="text" value={item.power_after || ''} onChange={(e) => setItem(prev => ({ ...prev, power_after: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className="block text-slate-400 mb-1">移民時期</label>
+              <select value={item.transfer_period || ''} onChange={(e) => setItem(prev => ({ ...prev, transfer_period: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
+                <option value="">- (未選択)</option>
+                {transferOptions.map((opt, idx) => <option key={idx} value={opt.label}>{opt.label}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-slate-400 mb-1">招待枠</label>
               <select value={item.invitation_slot || ''} onChange={(e) => setItem(prev => ({ ...prev, invitation_slot: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
                 <option value="">- (未選択)</option>
                 {INVITATION_SLOT_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">ステータス <span className="text-rose-500">*</span></label>
-              <select required value={item.status || ''} onChange={(e) => setItem(prev => ({ ...prev, status: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
-                <option value="">- (未選択)</option>
-                {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               </select>
             </div>
           </div>
@@ -449,11 +449,6 @@ export default function TransferManagementPage() {
 
   const handleSubmitModal = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!editingItem.transfer_period) {
-      alert('移民時期は必須です。');
-      return;
-    }
 
     const payload = {
       ...editingItem,
@@ -516,13 +511,6 @@ export default function TransferManagementPage() {
     if (checkedItems.length === 0) {
       alert('メンバーが選択されていません。');
       return;
-    }
-
-    for (const item of checkedItems) {
-      if (!item.transfer_period) {
-        alert(`アカウント「${item.game_account_name || item.game_id}」の移民時期が入力されていません。移民時期の入力は必須です。`);
-        return;
-      }
     }
 
     let successCount = 0;
@@ -694,15 +682,15 @@ export default function TransferManagementPage() {
         <table className="w-full text-left border-collapse min-w-[1700px] table-fixed">
           <thead>
             <tr className="border-b border-slate-800 bg-[#0b0f19] text-[11px] text-slate-400 sticky top-0 z-30 whitespace-nowrap">
-              <th className="p-0 sticky left-0 z-30 bg-[#0b0f19] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-[450px]">
+              <th className="p-0 sticky left-0 z-30 bg-[#0b0f19] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] w-[330px]">
                 <div className="flex items-center">
                   <div className="p-3 font-semibold text-center w-[50px] shrink-0 border-b border-slate-800">作業</div>
                   <div className="p-3 font-semibold text-center w-[65px] shrink-0 border-b border-slate-800">編集</div>
                   <div className="p-3 font-semibold w-[85px] shrink-0 border-b border-slate-800">サーバー</div>
                   <div className="p-3 font-semibold w-[130px] shrink-0 border-b border-slate-800">アカウント名</div>
-                  <div className="p-3 font-semibold w-[120px] shrink-0 border-b border-slate-800">ステータス</div>
                 </div>
               </th>
+              <th className="p-3 font-semibold w-[120px] border-b border-slate-800">ステータス</th>
               <th className="p-3 font-semibold w-[110px] border-b border-slate-800">同盟名</th>
               <th className="p-3 font-semibold w-[110px] border-b border-slate-800">ゲームID</th>
               <th className="p-3 font-semibold w-[120px] border-b border-slate-800">FC</th>
@@ -720,14 +708,14 @@ export default function TransferManagementPage() {
           <tbody className="text-xs whitespace-nowrap">
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={13} className="text-center py-12 text-slate-500">
+                <td colSpan={14} className="text-center py-12 text-slate-500">
                   データがありません
                 </td>
               </tr>
             ) : (
               filteredItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-800/30 transition group">
-                  <td className="p-0 sticky left-0 z-20 bg-[#151c2c] group-hover:bg-[#1a2338] transition shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] border-b border-slate-800/60 w-[450px]">
+                  <td className="p-0 sticky left-0 z-20 bg-[#151c2c] group-hover:bg-[#1a2338] transition shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)] border-b border-slate-800/60 w-[330px]">
                     <div className="flex items-center">
                       <div className="p-3 text-center w-[50px] shrink-0">
                         <input
@@ -752,12 +740,13 @@ export default function TransferManagementPage() {
                       <div className="p-3 font-bold text-white w-[130px] shrink-0 truncate">
                         {item.game_account_name || '-'}
                       </div>
-                      <div className="p-3 w-[120px] shrink-0">
-                        <span className={`inline-block border rounded-md px-2 py-0.5 font-medium text-[11px] text-center w-full truncate ${getStatusBadgeStyle(item.status)}`}>
-                          {item.status || '-'}
-                        </span>
-                      </div>
                     </div>
+                  </td>
+
+                  <td className="p-3 w-[120px] shrink-0 border-b border-slate-800/60">
+                    <span className={`inline-block border rounded-md px-2 py-0.5 font-medium text-[11px] text-center w-full truncate ${getStatusBadgeStyle(item.status)}`}>
+                      {item.status || '-'}
+                    </span>
                   </td>
 
                   <td className="p-3 text-slate-300 w-[110px] truncate border-b border-slate-800/60">
