@@ -28,7 +28,7 @@ export default function StrategyParentPage() {
             className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
           >
             <div className="text-2xl">🐉</div>
-            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">霜竜の覇者（FTD）</h2>
+            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">霜竜の覇者</h2>
             <p className="text-xs text-slate-400">霜竜の覇者に関する戦略や配置を確認します。</p>
           </Link>
 
@@ -38,7 +38,7 @@ export default function StrategyParentPage() {
             className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
           >
             <div className="text-2xl">🛡️</div>
-            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">雪原兵器リーグ（TAL）</h2>
+            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">雪原兵器リーグ</h2>
             <p className="text-xs text-slate-400">雪原兵器リーグの編成や対策を管理します。</p>
           </Link>
 
