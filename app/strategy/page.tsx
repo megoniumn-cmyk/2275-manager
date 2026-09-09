@@ -1,43 +1,58 @@
-// app/coming-soon/page.tsx
 'use client';
 
-export default function ComingSoonPage() {
+import Link from 'next/link';
+
+export default function StrategyParentPage() {
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 font-sans flex flex-col">
-      {/* メインコンテンツエリア */}
-      <main className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-6">
-        <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-10 shadow-2xl flex flex-col items-center max-w-md w-full space-y-6">
-          
-          {/* カービィをイメージしたスリープアイコン＆アニメーション演出 */}
-          <div className="w-28 h-28 flex items-center justify-center rounded-2xl bg-pink-500/10 border border-pink-500/20 shadow-inner relative">
-            <span className="text-5xl select-none animate-pulse">
-              😴
-            </span>
-            <div className="absolute -top-2 -right-2 flex space-x-1">
-              <span className="text-blue-400 font-bold text-sm animate-bounce">z</span>
-              <span className="text-blue-400 font-bold text-xs animate-bounce delay-100">Z</span>
-              <span className="text-blue-400 font-bold text-[10px] animate-bounce delay-200">z</span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-wider text-white">
-              準備中... 💤
-            </h1>
-            <p className="text-sm text-slate-400">
-              このページは現在作成中です。公開までもうしばらくお待ちください。
-            </p>
-          </div>
-
-          {/* トップへ戻るボタン */}
-          <a
-            href="/"
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-xl transition shadow"
-          >
-            トップページへ戻る
-          </a>
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-6">
+      <div className="space-y-6 max-w-5xl mx-auto">
+        <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h1 className="text-2xl font-extrabold text-white tracking-tight mb-2">🛡️ 作戦室・戦略ハブ</h1>
+          <p className="text-xs text-slate-400">同盟の戦略管理や戦闘データの検証を行う各セクションへアクセスします。</p>
         </div>
-      </main>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* SvSへ */}
+          <Link 
+            href="/strategy/svs"
+            className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
+          >
+            <div className="text-2xl">⚔️</div>
+            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">SvS</h2>
+            <p className="text-xs text-slate-400">SvSに関する戦略や準備の管理を行います。</p>
+          </Link>
+
+          {/* FTD（霜竜の覇者）へ */}
+          <Link 
+            href="/strategy/ftd"
+            className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
+          >
+            <div className="text-2xl">🐉</div>
+            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">霜竜の覇者（FTD）</h2>
+            <p className="text-xs text-slate-400">霜竜の覇者に関する戦略や配置を確認します。</p>
+          </Link>
+
+          {/* TAL（雪原兵器リーグ）へ */}
+          <Link 
+            href="/strategy/tal"
+            className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
+          >
+            <div className="text-2xl">🛡️</div>
+            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">雪原兵器リーグ（TAL）</h2>
+            <p className="text-xs text-slate-400">雪原兵器リーグの編成や対策を管理します。</p>
+          </Link>
+
+          {/* 検証データへ */}
+          <Link 
+            href="/strategy/reports"
+            className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
+          >
+            <div className="text-2xl">📊</div>
+            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">検証データ</h2>
+            <p className="text-xs text-slate-400">兵種別ステータスや複数兵士アナライザー、戦闘レポートの登録・閲覧。</p>
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
