@@ -416,6 +416,15 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
     });
   }, [teamKeys, teamSettings]);
 
+  const teamAssignedMembersMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    validTeams.forEach((k) => map.set(k, []));
+    Object.entries(riderAssignments).forEach(([gId, tKey]) => {
+      if (map.has(tKey)) map.get(tKey)?.push(gId);
+    });
+    return map;
+  }, [riderAssignments, validTeams]);
+
   const categorizedRiders = useMemo(() => {
     const nonLeaders = members.filter((m) => m.leader !== true && m.status !== 'left');
     const fullParticipation: any[] = [];
@@ -487,15 +496,6 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
   const gostAllianceTeams = useMemo(() => {
     return validTeams.filter((k) => teamSettings[k]?.alliance === gostAllianceName);
   }, [validTeams, teamSettings, gostAllianceName]);
-
-  const teamAssignedMembersMap = useMemo(() => {
-    const map = new Map<string, string[]>();
-    validTeams.forEach((k) => map.set(k, []));
-    Object.entries(riderAssignments).forEach(([gId, tKey]) => {
-      if (map.has(tKey)) map.get(tKey)?.push(gId);
-    });
-    return map;
-  }, [riderAssignments, validTeams]);
 
   if (isInitializing) {
     return <div className="text-center py-12 text-slate-400">読み込み中...</div>;
@@ -601,12 +601,18 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                 <thead>
                   <tr className="border-b border-slate-800 bg-[#151c2c] text-slate-400">
                     <th className="p-3 w-32 font-bold text-slate-300">同盟 / 役割</th>
-                    {mainAllianceTeams.map((k) => (
-                      <th key={k} className="p-3 text-center border-l border-slate-800">
-                        <div className="text-cyan-400 font-bold">チーム {k}</div>
-                        <div className="text-[10px] text-slate-400">{teamSettings[k]?.role}</div>
-                      </th>
-                    ))}
+                    {mainAllianceTeams.map((k) => {
+                      const count = (teamAssignedMembersMap.get(k) || []).length;
+                      return (
+                        <th key={k} className="p-3 text-center border-l border-slate-800">
+                          <div className="text-cyan-400 font-bold flex items-center justify-center gap-1">
+                            <span>チーム {k}</span>
+                            <span className="text-[11px] font-normal text-slate-300">({count}人)</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">{teamSettings[k]?.role}</div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-[#0b0f19]">
@@ -663,12 +669,18 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                 <thead>
                   <tr className="border-b border-slate-800 bg-[#151c2c] text-slate-400">
                     <th className="p-3 w-32 font-bold text-slate-300">同盟 / 役割</th>
-                    {gostAllianceTeams.map((k) => (
-                      <th key={k} className="p-3 text-center border-l border-slate-800">
-                        <div className="text-cyan-400 font-bold">チーム {k}</div>
-                        <div className="text-[10px] text-slate-400">{teamSettings[k]?.role}</div>
-                      </th>
-                    ))}
+                    {gostAllianceTeams.map((k) => {
+                      const count = (teamAssignedMembersMap.get(k) || []).length;
+                      return (
+                        <th key={k} className="p-3 text-center border-l border-slate-800">
+                          <div className="text-cyan-400 font-bold flex items-center justify-center gap-1">
+                            <span>チーム {k}</span>
+                            <span className="text-[11px] font-normal text-slate-300">({count}人)</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">{teamSettings[k]?.role}</div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-[#0b0f19]">
@@ -771,7 +783,6 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                     const resp = responseMap.get(String(m.game_id)) || {};
                     const pVal = Number(resp.participation_type);
                     
-                    // 参加時間のラベルと色分け (1: 移転込み, 2: 戦闘時間のみ)
                     let pLabel = '-';
                     let pBadgeStyle = 'bg-slate-800 text-slate-400 border-slate-700';
                     if (pVal === 1) {
