@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -302,7 +301,6 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
         .eq('survey_id', surveyId)
         .eq('team', keyToRemove);
 
-      // 該当チームに割り当てられていたメンバーの team も NULL に更新
       await supabase
         .from('svs_joiner')
         .update({ team: null })
@@ -350,7 +348,7 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
       setSaveStatus('saving');
       const mem = memberMap.get(gIdStr);
       const pets = riderPets[gIdStr] || { p21_23: false, p23_25: false, p24_26: false };
-      const assignedTeam = teamKey === '' ? null : teamKey; // 未割当なら NULL
+      const assignedTeam = teamKey === '' ? null : teamKey;
 
       const { error } = await supabase.from('svs_joiner').upsert(
         {
@@ -747,22 +745,22 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
             フル参加
           </div>
           <div className="overflow-x-auto max-h-[400px] border border-slate-800 rounded-xl">
-            <table className="w-full text-left text-xs border-collapse relative">
+            <table className="w-full text-left text-xs border-collapse relative whitespace-nowrap">
               <thead className="sticky top-0 z-20 bg-[#151c2c] text-slate-300 shadow">
                 <tr className="border-b border-slate-800">
-                  <th className="p-3 bg-[#151c2c] sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">アカウント名</th>
-                  <th className="p-3 bg-[#151c2c] sticky left-[110px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Game ID</th>
-                  <th className="p-3 bg-[#151c2c] sticky left-[210px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">同盟</th>
-                  <th className="p-3 bg-[#151c2c]">FC</th>
-                  <th className="p-3 bg-[#151c2c]">総力</th>
-                  <th className="p-3 bg-[#151c2c]">盾</th>
-                  <th className="p-3 bg-[#151c2c]">槍</th>
-                  <th className="p-3 bg-[#151c2c]">弓</th>
-                  <th className="p-3 bg-[#151c2c]">参加時間</th>
-                  <th className="p-3 bg-[#151c2c]">VC参加</th>
-                  <th className="p-3 bg-[#151c2c]">VC備考</th>
-                  <th className="p-3 bg-[#151c2c]">Discord</th>
-                  <th className="p-3 bg-[#151c2c]">チーム割当</th>
+                  <th className="p-3 min-w-[130px] bg-[#151c2c] sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">アカウント名</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c] sticky left-[130px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Game ID</th>
+                  <th className="p-3 min-w-[100px] bg-[#151c2c] sticky left-[240px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">同盟</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">FC</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">総力</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">盾</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">槍</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">弓</th>
+                  <th className="p-3 min-w-[130px] bg-[#151c2c]">参加時間</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">VC参加</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c]">VC備考</th>
+                  <th className="p-3 min-w-[80px] bg-[#151c2c]">Discord</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c]">チーム割当</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 bg-[#0b0f19]">
@@ -772,7 +770,18 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                   categorizedRiders.full.map((m, index) => {
                     const resp = responseMap.get(String(m.game_id)) || {};
                     const pVal = Number(resp.participation_type);
-                    const pLabel = pVal === 1 ? '①フル参加(移転込み)' : '②フル参加(戦闘時間のみ)';
+                    
+                    // 参加時間のラベルと色分け (1: 移転込み, 2: 戦闘時間のみ)
+                    let pLabel = '-';
+                    let pBadgeStyle = 'bg-slate-800 text-slate-400 border-slate-700';
+                    if (pVal === 1) {
+                      pLabel = '移転込み';
+                      pBadgeStyle = 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
+                    } else if (pVal === 2) {
+                      pLabel = '戦闘時間のみ';
+                      pBadgeStyle = 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+                    }
+
                     const vcVal = Number(resp.vc_status);
                     const vcLabel = vcVal === 1 ? '①フル参加' : vcVal === 2 ? '②途中参加' : '③不参加';
                     const discordLabel = m.is_in_2275 === true || m.is_in_2275 === 'true' || m.is_in_2275 === '⚪︎' ? '⚪︎' : '×';
@@ -780,18 +789,18 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                     return (
                       <tr key={`${m.game_id}-${index}`} className="hover:bg-slate-800/30">
                         <td className="p-3 font-medium text-white bg-[#0b0f19] sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.name}</td>
-                        <td className="p-3 text-slate-400 bg-[#0b0f19] sticky left-[110px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.game_id}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19] sticky left-[210px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.alliance}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_fc_level || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_power || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_shield_soldier || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_spear_soldier || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_bow_soldier || '-'}</td>
-                        <td className="p-3 bg-[#0b0f19]"><span className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">{pLabel}</span></td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{vcLabel}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19] truncate max-w-[100px]">{resp.vc_memo || ''}</td>
-                        <td className="p-3 text-center font-bold text-cyan-300 bg-[#0b0f19]">{discordLabel}</td>
-                        <td className="p-3 bg-[#0b0f19]">
+                        <td className="p-3 text-slate-400 bg-[#0b0f19] sticky left-[130px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.game_id}</td>
+                        <td className="p-3 text-slate-300 bg-[#0b0f19] sticky left-[240px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.alliance}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_fc_level || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_power || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_shield_soldier || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_spear_soldier || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_bow_soldier || '-'}</td>
+                        <td className="p-3"><span className={`px-2 py-0.5 rounded text-[10px] border ${pBadgeStyle}`}>{pLabel}</span></td>
+                        <td className="p-3 text-slate-300">{vcLabel}</td>
+                        <td className="p-3 text-slate-300 truncate max-w-[100px]">{resp.vc_memo || ''}</td>
+                        <td className="p-3 text-center font-bold text-cyan-300">{discordLabel}</td>
+                        <td className="p-3">
                           <select
                             value={riderAssignments[String(m.game_id)] || ''}
                             onChange={(e) => handleAssignmentChange(m.game_id, e.target.value)}
@@ -818,28 +827,28 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
             途中参加
           </div>
           <div className="overflow-x-auto max-h-[400px] border border-slate-800 rounded-xl">
-            <table className="w-full text-left text-xs border-collapse relative">
+            <table className="w-full text-left text-xs border-collapse relative whitespace-nowrap">
               <thead className="sticky top-0 z-20 bg-[#151c2c] text-slate-300 shadow">
                 <tr className="border-b border-slate-800">
-                  <th className="p-3 bg-[#151c2c] sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">アカウント名</th>
-                  <th className="p-3 bg-[#151c2c] sticky left-[110px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Game ID</th>
-                  <th className="p-3 bg-[#151c2c] sticky left-[210px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">同盟</th>
-                  <th className="p-3 bg-[#151c2c]">FC</th>
-                  <th className="p-3 bg-[#151c2c]">総力</th>
-                  <th className="p-3 bg-[#151c2c]">盾</th>
-                  <th className="p-3 bg-[#151c2c]">槍</th>
-                  <th className="p-3 bg-[#151c2c]">弓</th>
-                  <th className="p-3 bg-[#151c2c] text-center">20時</th>
-                  <th className="p-3 bg-[#151c2c] text-center">21時</th>
-                  <th className="p-3 bg-[#151c2c] text-center">22時</th>
-                  <th className="p-3 bg-[#151c2c] text-center">23時</th>
-                  <th className="p-3 bg-[#151c2c] text-center">24時</th>
-                  <th className="p-3 bg-[#151c2c] text-center">25時</th>
-                  <th className="p-3 bg-[#151c2c]">時間備考</th>
-                  <th className="p-3 bg-[#151c2c]">VC参加</th>
-                  <th className="p-3 bg-[#151c2c]">VC備考</th>
-                  <th className="p-3 bg-[#151c2c]">Discord</th>
-                  <th className="p-3 bg-[#151c2c]">チーム割当</th>
+                  <th className="p-3 min-w-[130px] bg-[#151c2c] sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">アカウント名</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c] sticky left-[130px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Game ID</th>
+                  <th className="p-3 min-w-[100px] bg-[#151c2c] sticky left-[240px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">同盟</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">FC</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">総力</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">盾</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">槍</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">弓</th>
+                  <th className="p-3 text-center bg-[#151c2c]">20時</th>
+                  <th className="p-3 text-center bg-[#151c2c]">21時</th>
+                  <th className="p-3 text-center bg-[#151c2c]">22時</th>
+                  <th className="p-3 text-center bg-[#151c2c]">23時</th>
+                  <th className="p-3 text-center bg-[#151c2c]">24時</th>
+                  <th className="p-3 text-center bg-[#151c2c]">25時</th>
+                  <th className="p-3 min-w-[100px] bg-[#151c2c]">時間備考</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">VC参加</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c]">VC備考</th>
+                  <th className="p-3 min-w-[80px] bg-[#151c2c]">Discord</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c]">チーム割当</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 bg-[#0b0f19]">
@@ -855,15 +864,15 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                     return (
                       <tr key={`${m.game_id}-${index}`} className="hover:bg-slate-800/30">
                         <td className="p-3 font-medium text-white bg-[#0b0f19] sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.name}</td>
-                        <td className="p-3 text-slate-400 bg-[#0b0f19] sticky left-[110px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.game_id}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19] sticky left-[210px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.alliance}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_fc_level || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_power || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_shield_soldier || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_spear_soldier || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_bow_soldier || '-'}</td>
+                        <td className="p-3 text-slate-400 bg-[#0b0f19] sticky left-[130px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.game_id}</td>
+                        <td className="p-3 text-slate-300 bg-[#0b0f19] sticky left-[240px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.alliance}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_fc_level || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_power || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_shield_soldier || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_spear_soldier || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_bow_soldier || '-'}</td>
                         {[resp.slot_20, resp.slot_21, resp.slot_22, resp.slot_23, resp.slot_24, resp.slot_25].map((isChecked, i) => (
-                          <td key={i} className="p-3 text-center bg-[#0b0f19]">
+                          <td key={i} className="p-3 text-center">
                             <input 
                               type="checkbox" 
                               checked={!!isChecked} 
@@ -872,11 +881,11 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                             />
                           </td>
                         ))}
-                        <td className="p-3 text-slate-300 bg-[#0b0f19] truncate max-w-[100px]">{resp.time_memo || ''}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{vcLabel}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19] truncate max-w-[100px]">{resp.vc_memo || ''}</td>
-                        <td className="p-3 text-center font-bold text-cyan-300 bg-[#0b0f19]">{discordLabel}</td>
-                        <td className="p-3 bg-[#0b0f19]">
+                        <td className="p-3 text-slate-300 truncate max-w-[100px]">{resp.time_memo || ''}</td>
+                        <td className="p-3 text-slate-300">{vcLabel}</td>
+                        <td className="p-3 text-slate-300 truncate max-w-[100px]">{resp.vc_memo || ''}</td>
+                        <td className="p-3 text-center font-bold text-cyan-300">{discordLabel}</td>
+                        <td className="p-3">
                           <select
                             value={riderAssignments[String(m.game_id)] || ''}
                             onChange={(e) => handleAssignmentChange(m.game_id, e.target.value)}
@@ -903,22 +912,22 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
             不参加
           </div>
           <div className="overflow-x-auto max-h-[400px] border border-slate-800 rounded-xl">
-            <table className="w-full text-left text-xs border-collapse relative">
+            <table className="w-full text-left text-xs border-collapse relative whitespace-nowrap">
               <thead className="sticky top-0 z-20 bg-[#151c2c] text-slate-300 shadow">
                 <tr className="border-b border-slate-800">
-                  <th className="p-3 bg-[#151c2c] sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">アカウント名</th>
-                  <th className="p-3 bg-[#151c2c] sticky left-[110px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Game ID</th>
-                  <th className="p-3 bg-[#151c2c] sticky left-[210px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">同盟</th>
-                  <th className="p-3 bg-[#151c2c]">FC</th>
-                  <th className="p-3 bg-[#151c2c]">総力</th>
-                  <th className="p-3 bg-[#151c2c]">盾</th>
-                  <th className="p-3 bg-[#151c2c]">槍</th>
-                  <th className="p-3 bg-[#151c2c]">弓</th>
-                  <th className="p-3 bg-[#151c2c]">参加時間</th>
-                  <th className="p-3 bg-[#151c2c]">VC参加</th>
-                  <th className="p-3 bg-[#151c2c]">VC備考</th>
-                  <th className="p-3 bg-[#151c2c]">Discord</th>
-                  <th className="p-3 bg-[#151c2c]">チーム割当</th>
+                  <th className="p-3 min-w-[130px] bg-[#151c2c] sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">アカウント名</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c] sticky left-[130px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Game ID</th>
+                  <th className="p-3 min-w-[100px] bg-[#151c2c] sticky left-[240px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">同盟</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">FC</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">総力</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">盾</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">槍</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">弓</th>
+                  <th className="p-3 min-w-[130px] bg-[#151c2c]">参加時間</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">VC参加</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c]">VC備考</th>
+                  <th className="p-3 min-w-[80px] bg-[#151c2c]">Discord</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c]">チーム割当</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 bg-[#0b0f19]">
@@ -934,18 +943,18 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                     return (
                       <tr key={`${m.game_id}-${index}`} className="hover:bg-slate-800/30">
                         <td className="p-3 font-medium text-white bg-[#0b0f19] sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.name}</td>
-                        <td className="p-3 text-slate-400 bg-[#0b0f19] sticky left-[110px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.game_id}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19] sticky left-[210px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.alliance}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_fc_level || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_power || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_shield_soldier || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_spear_soldier || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{resp.snapshot_bow_soldier || '-'}</td>
-                        <td className="p-3 bg-[#0b0f19]"><span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30">④不参加</span></td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{vcLabel}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19] truncate max-w-[100px]">{resp.vc_memo || ''}</td>
-                        <td className="p-3 text-center font-bold text-cyan-300 bg-[#0b0f19]">{discordLabel}</td>
-                        <td className="p-3 text-slate-500 bg-[#0b0f19] text-center">-</td>
+                        <td className="p-3 text-slate-400 bg-[#0b0f19] sticky left-[130px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.game_id}</td>
+                        <td className="p-3 text-slate-300 bg-[#0b0f19] sticky left-[240px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.alliance}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_fc_level || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_power || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_shield_soldier || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_spear_soldier || '-'}</td>
+                        <td className="p-3 text-slate-300">{resp.snapshot_bow_soldier || '-'}</td>
+                        <td className="p-3"><span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30">不参加</span></td>
+                        <td className="p-3 text-slate-300">{vcLabel}</td>
+                        <td className="p-3 text-slate-300 truncate max-w-[100px]">{resp.vc_memo || ''}</td>
+                        <td className="p-3 text-center font-bold text-cyan-300">{discordLabel}</td>
+                        <td className="p-3 text-slate-500 text-center">-</td>
                       </tr>
                     );
                   })
@@ -961,22 +970,22 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
             未回答
           </div>
           <div className="overflow-x-auto max-h-[400px] border border-slate-800 rounded-xl">
-            <table className="w-full text-left text-xs border-collapse relative">
+            <table className="w-full text-left text-xs border-collapse relative whitespace-nowrap">
               <thead className="sticky top-0 z-20 bg-[#151c2c] text-slate-300 shadow">
                 <tr className="border-b border-slate-800">
-                  <th className="p-3 bg-[#151c2c] sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">アカウント名</th>
-                  <th className="p-3 bg-[#151c2c] sticky left-[110px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Game ID</th>
-                  <th className="p-3 bg-[#151c2c] sticky left-[210px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">同盟</th>
-                  <th className="p-3 bg-[#151c2c]">FC</th>
-                  <th className="p-3 bg-[#151c2c]">総力</th>
-                  <th className="p-3 bg-[#151c2c]">盾</th>
-                  <th className="p-3 bg-[#151c2c]">槍</th>
-                  <th className="p-3 bg-[#151c2c]">弓</th>
-                  <th className="p-3 bg-[#151c2c]">参加時間</th>
-                  <th className="p-3 bg-[#151c2c]">VC参加</th>
-                  <th className="p-3 bg-[#151c2c]">VC備考</th>
-                  <th className="p-3 bg-[#151c2c]">Discord</th>
-                  <th className="p-3 bg-[#151c2c]">チーム割当</th>
+                  <th className="p-3 min-w-[130px] bg-[#151c2c] sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">アカウント名</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c] sticky left-[130px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Game ID</th>
+                  <th className="p-3 min-w-[100px] bg-[#151c2c] sticky left-[240px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">同盟</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">FC</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">総力</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">盾</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">槍</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">弓</th>
+                  <th className="p-3 min-w-[130px] bg-[#151c2c]">参加時間</th>
+                  <th className="p-3 min-w-[90px] bg-[#151c2c]">VC参加</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c]">VC備考</th>
+                  <th className="p-3 min-w-[80px] bg-[#151c2c]">Discord</th>
+                  <th className="p-3 min-w-[110px] bg-[#151c2c]">チーム割当</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 bg-[#0b0f19]">
@@ -989,18 +998,18 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                     return (
                       <tr key={`${m.game_id}-${index}`} className="hover:bg-slate-800/30">
                         <td className="p-3 font-medium text-white bg-[#0b0f19] sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.name}</td>
-                        <td className="p-3 text-slate-400 bg-[#0b0f19] sticky left-[110px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.game_id}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19] sticky left-[210px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.alliance}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{m.fc_level || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{m.current_power || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{m.shield_soldier || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{m.spear_soldier || '-'}</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">{m.bow_soldier || '-'}</td>
-                        <td className="p-3 bg-[#0b0f19]"><span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">⑤未回答</span></td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">-</td>
-                        <td className="p-3 text-slate-300 bg-[#0b0f19]">-</td>
-                        <td className="p-3 text-center font-bold text-cyan-300 bg-[#0b0f19]">{discordLabel}</td>
-                        <td className="p-3 bg-[#0b0f19]">
+                        <td className="p-3 text-slate-400 bg-[#0b0f19] sticky left-[130px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.game_id}</td>
+                        <td className="p-3 text-slate-300 bg-[#0b0f19] sticky left-[240px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{m.alliance}</td>
+                        <td className="p-3 text-slate-300">{m.fc_level || '-'}</td>
+                        <td className="p-3 text-slate-300">{m.current_power || '-'}</td>
+                        <td className="p-3 text-slate-300">{m.shield_soldier || '-'}</td>
+                        <td className="p-3 text-slate-300">{m.spear_soldier || '-'}</td>
+                        <td className="p-3 text-slate-300">{m.bow_soldier || '-'}</td>
+                        <td className="p-3"><span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400">未回答</span></td>
+                        <td className="p-3 text-slate-300">-</td>
+                        <td className="p-3 text-slate-300">-</td>
+                        <td className="p-3 text-center font-bold text-cyan-300">{discordLabel}</td>
+                        <td className="p-3">
                           <select
                             value={riderAssignments[String(m.game_id)] || ''}
                             onChange={(e) => handleAssignmentChange(m.game_id, e.target.value)}
