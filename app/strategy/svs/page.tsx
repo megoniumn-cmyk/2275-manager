@@ -202,8 +202,8 @@ export default function SvSStrategyPage() {
         <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-6 shadow-xl min-h-[400px]">
           {activeTab === 'alliance' && <TabAllianceSetting selectedDate={selectedDate} />}
           {activeTab === 'rider' && <TabRiderSetting selectedDate={selectedDate} />}
-          {activeTab === 'formation' && <TabFormationSetting />}
-          {activeTab === 'confirm' && <TabOperationConfirm />}
+          {activeTab === 'formation' && <TabFormationSetting selectedDate={selectedDate} />}
+          {activeTab === 'confirm' && <TabOperationConfirm selectedDate={selectedDate} />}
         </div>
       </div>
     </div>

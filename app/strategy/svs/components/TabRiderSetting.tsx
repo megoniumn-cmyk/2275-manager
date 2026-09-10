@@ -373,11 +373,19 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
     }
   };
 
-  // ペットチェックボックス変更
-  const handlePetCheckChange = async (gameId: string, field: 'p21_23' | 'p23_25' | 'p24_26', checked: boolean) => {
+  // ペットチェックボックス変更（1つだけチェックを入れる方式に変更）
+  const handlePetCheckChange = async (gameId: string, field: 'p21_23' | 'p23_25' | 'p24_26') => {
     const gIdStr = String(gameId);
     const current = riderPets[gIdStr] || { p21_23: false, p23_25: false, p24_26: false };
-    const updatedPets = { ...current, [field]: checked };
+    
+    // すでにチェックされているものを再度クリックした場合はすべて解除、それ以外はクリックされたものだけを true にする
+    const isAlreadyChecked = current[field];
+    const updatedPets = {
+      p21_23: isAlreadyChecked ? false : field === 'p21_23',
+      p23_25: isAlreadyChecked ? false : field === 'p23_25',
+      p24_26: isAlreadyChecked ? false : field === 'p24_26',
+    };
+
     const newRiderPets = { ...riderPets, [gIdStr]: updatedPets };
     setRiderPets(newRiderPets);
 
@@ -631,15 +639,15 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                                   <div className="font-bold text-white text-xs">{mem ? mem.name : gId}</div>
                                   <div className="flex items-center gap-2 text-[10px] text-slate-300 pt-1 xl:pt-0 border-t xl:border-t-0 border-slate-800">
                                     <label className="flex items-center gap-1 cursor-pointer">
-                                      <input type="checkbox" checked={pets.p21_23} onChange={(e) => handlePetCheckChange(gId, 'p21_23', e.target.checked)} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
+                                      <input type="checkbox" checked={pets.p21_23} onChange={() => handlePetCheckChange(gId, 'p21_23')} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
                                       21-23
                                     </label>
                                     <label className="flex items-center gap-1 cursor-pointer">
-                                      <input type="checkbox" checked={pets.p23_25} onChange={(e) => handlePetCheckChange(gId, 'p23_25', e.target.checked)} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
+                                      <input type="checkbox" checked={pets.p23_25} onChange={() => handlePetCheckChange(gId, 'p23_25')} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
                                       23-25
                                     </label>
                                     <label className="flex items-center gap-1 cursor-pointer">
-                                      <input type="checkbox" checked={pets.p24_26} onChange={(e) => handlePetCheckChange(gId, 'p24_26', e.target.checked)} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
+                                      <input type="checkbox" checked={pets.p24_26} onChange={() => handlePetCheckChange(gId, 'p24_26')} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
                                       24-26
                                     </label>
                                   </div>
@@ -699,15 +707,15 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                                   <div className="font-bold text-white text-xs">{mem ? mem.name : gId}</div>
                                   <div className="flex items-center gap-2 text-[10px] text-slate-300 pt-1 xl:pt-0 border-t xl:border-t-0 border-slate-800">
                                     <label className="flex items-center gap-1 cursor-pointer">
-                                      <input type="checkbox" checked={pets.p21_23} onChange={(e) => handlePetCheckChange(gId, 'p21_23', e.target.checked)} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
+                                      <input type="checkbox" checked={pets.p21_23} onChange={() => handlePetCheckChange(gId, 'p21_23')} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
                                       21-23
                                     </label>
                                     <label className="flex items-center gap-1 cursor-pointer">
-                                      <input type="checkbox" checked={pets.p23_25} onChange={(e) => handlePetCheckChange(gId, 'p23_25', e.target.checked)} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
+                                      <input type="checkbox" checked={pets.p23_25} onChange={() => handlePetCheckChange(gId, 'p23_25')} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
                                       23-25
                                     </label>
                                     <label className="flex items-center gap-1 cursor-pointer">
-                                      <input type="checkbox" checked={pets.p24_26} onChange={(e) => handlePetCheckChange(gId, 'p24_26', e.target.checked)} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
+                                      <input type="checkbox" checked={pets.p24_26} onChange={() => handlePetCheckChange(gId, 'p24_26')} className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3.5 h-3.5 accent-cyan-400" />
                                       24-26
                                     </label>
                                   </div>

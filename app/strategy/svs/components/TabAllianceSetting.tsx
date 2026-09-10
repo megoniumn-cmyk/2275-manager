@@ -168,14 +168,18 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
           loadedPetSettings[gId] = {
             pet21_23: item.p_2123 || false,
             pet23_25: item.p_2325 || false,
-            pet25_26: item.p_2426 || false,
+            pet24_26: item.p_2426 || false,
             march21_23: item.m_2123 || '',
-            march23_25: item.m_2325 || '',
-            march25_26: item.m_2426 || '',
+            march23_24: item.m_2324 || '',
+            march24_25: item.m_2425 || '',
+            march25_26: item.m_2526 || '',
           };
 
           ['21-23', '23-25', '25-26'].forEach((slot) => {
-            const val = slot === '21-23' ? item.r_2123 : slot === '23-25' ? item.r_2325 : item.r_2526;
+            const val = 
+              slot === '21-23' ? item.r_2123 : 
+              slot === '23-25' ? item.r_2325 : 
+              item.r_2526;
             if (val) {
               if (loadedRally[slot] && loadedRally[slot][val]) {
                 if (!loadedRally[slot][val].includes(gId)) {
@@ -277,7 +281,7 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
     const { error } = await supabase
       .from('strategy_svs_info')
       .upsert({
-        survey_id: surveyMasterId, // UUIDなのでそのまま渡す
+        survey_id: surveyMasterId,
         event_date: selectedDate,
         main: mainVal,
         gost_1: gostVal,
@@ -325,7 +329,7 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
     const { error } = await supabase
       .from('strategy_svs_leader')
       .upsert({
-        survey_id: surveyMasterId, // UUIDなのでそのまま渡す
+        survey_id: surveyMasterId,
         event_date: selectedDate,
         game_id: gameId,
         name: mem.name,
@@ -334,10 +338,11 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
         r_2526: r2526,
         p_2123: !!setting.pet21_23,
         p_2325: !!setting.pet23_25,
-        p_2426: !!setting.pet25_26,
+        p_2426: !!setting.pet24_26,
         m_2123: setting.march21_23 || null,
-        m_2325: setting.march23_25 || null,
-        m_2426: setting.march25_26 || null,
+        m_2324: setting.march23_24 || null,
+        m_2425: setting.march24_25 || null,
+        m_2526: setting.march25_26 || null,
         delate: isDelated,
       }, { onConflict: 'survey_id,game_id' });
 
@@ -359,14 +364,23 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
     saveInfoToSupabase(garrisonAlliance, val);
   };
 
-  const handlePetSettingChange = (gameId: string, field: string, value: any) => {
+  // 💡 ペット時間の排他制御（1つのアカウントにつき1つだけチェック可能にする）
+  const handlePetSettingChange = (gameId: string, field: string, checked: boolean) => {
+    const currentSetting = petSettings[gameId] || {};
+    
+    // チェックをオンにする場合は、他のペット時間を全て false にリセットする
+    const updatedSetting = {
+      ...currentSetting,
+      pet21_23: field === 'pet21_23' ? checked : false,
+      pet23_25: field === 'pet23_25' ? checked : false,
+      pet24_26: field === 'pet24_26' ? checked : false,
+    };
+
     const updated = {
       ...petSettings,
-      [gameId]: {
-        ...(petSettings[gameId] || {}),
-        [field]: value,
-      },
+      [gameId]: updatedSetting,
     };
+
     setPetSettings(updated);
     saveLeaderToSupabase(gameId, { petSettingsMap: updated });
   };
@@ -411,9 +425,26 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
     if (!setting) return false;
     if (slot === '21-23') return !!setting.pet21_23;
     if (slot === '23-25') return !!setting.pet23_25;
-    if (slot === '25-26') return !!setting.pet25_26;
+    if (slot === '25-26') return !!setting.pet24_26;
     return false;
   };
+
+  // 💡 ラリー設定で、現在選択中の時間枠（slot）にすでに配置されているアカウントIDのリストを取得
+  const assignedGameIdsInCurrentSlot = useMemo(() => {
+    const slotData = rallyAssignments[newLeaderInput.slot] || {};
+    const ids: string[] = [];
+    ['garrison', 'ghost1', 'ghost2', 'ghost3'].forEach((pos) => {
+      if (slotData[pos]) {
+        ids.push(...slotData[pos]);
+      }
+    });
+    return ids;
+  }, [rallyAssignments, newLeaderInput.slot]);
+
+  // 💡 既に同じ時間枠に配置されているリーダーをプルダウンの選択肢から除外
+  const availableLeadersForRally = useMemo(() => {
+    return activeLeaders.filter((m) => !assignedGameIdsInCurrentSlot.includes(m.game_id));
+  }, [activeLeaders, assignedGameIdsInCurrentSlot]);
 
   const filteredCandidatesForAdd = useMemo(() => {
     return members.filter((m) => {
@@ -506,9 +537,10 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
                 <th className="p-3">同盟</th>
                 <th className="p-3 text-center">ペット (21-23)</th>
                 <th className="p-3 text-center">ペット (23-25)</th>
-                <th className="p-3 text-center">ペット (25-26)</th>
+                <th className="p-3 text-center">ペット (24-26)</th>
                 <th className="p-3 text-center">行軍 (21-23)</th>
-                <th className="p-3 text-center">行軍 (23-25)</th>
+                <th className="p-3 text-center">行軍 (23-24)</th>
+                <th className="p-3 text-center">行軍 (24-25)</th>
                 <th className="p-3 text-center">行軍 (25-26)</th>
                 <th className="p-3 text-center">操作</th>
               </tr>
@@ -516,7 +548,7 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
             <tbody className="divide-y divide-slate-800/60">
               {activeLeaders.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-6 text-slate-500">
+                  <td colSpan={10} className="text-center py-6 text-slate-500">
                     該当するリーダーまたは追加されたメンバーがいません
                   </td>
                 </tr>
@@ -546,8 +578,8 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
                       <td className="p-3 text-center">
                         <input
                           type="checkbox"
-                          checked={!!setting.pet25_26}
-                          onChange={(e) => handlePetSettingChange(m.game_id, 'pet25_26', e.target.checked)}
+                          checked={!!setting.pet24_26}
+                          onChange={(e) => handlePetSettingChange(m.game_id, 'pet24_26', e.target.checked)}
                           className="rounded border-slate-700 bg-slate-900 text-cyan-600 focus:ring-cyan-500"
                         />
                       </td>
@@ -555,7 +587,11 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
                         <input
                           type="text"
                           value={setting.march21_23 || ''}
-                          onChange={(e) => handlePetSettingChange(m.game_id, 'march21_23', e.target.value)}
+                          onChange={(e) => {
+                            const updated = { ...petSettings, [m.game_id]: { ...(petSettings[m.game_id] || {}), march21_23: e.target.value } };
+                            setPetSettings(updated);
+                            saveLeaderToSupabase(m.game_id, { petSettingsMap: updated });
+                          }}
                           placeholder="行軍時間"
                           className="w-20 bg-[#151c2c] border border-slate-800 rounded px-2 py-1 text-xs text-center text-white focus:outline-none focus:border-cyan-500"
                         />
@@ -563,8 +599,25 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
                       <td className="p-3 text-center">
                         <input
                           type="text"
-                          value={setting.march23_25 || ''}
-                          onChange={(e) => handlePetSettingChange(m.game_id, 'march23_25', e.target.value)}
+                          value={setting.march23_24 || ''}
+                          onChange={(e) => {
+                            const updated = { ...petSettings, [m.game_id]: { ...(petSettings[m.game_id] || {}), march23_24: e.target.value } };
+                            setPetSettings(updated);
+                            saveLeaderToSupabase(m.game_id, { petSettingsMap: updated });
+                          }}
+                          placeholder="行軍時間"
+                          className="w-20 bg-[#151c2c] border border-slate-800 rounded px-2 py-1 text-xs text-center text-white focus:outline-none focus:border-cyan-500"
+                        />
+                      </td>
+                      <td className="p-3 text-center">
+                        <input
+                          type="text"
+                          value={setting.march24_25 || ''}
+                          onChange={(e) => {
+                            const updated = { ...petSettings, [m.game_id]: { ...(petSettings[m.game_id] || {}), march24_25: e.target.value } };
+                            setPetSettings(updated);
+                            saveLeaderToSupabase(m.game_id, { petSettingsMap: updated });
+                          }}
                           placeholder="行軍時間"
                           className="w-20 bg-[#151c2c] border border-slate-800 rounded px-2 py-1 text-xs text-center text-white focus:outline-none focus:border-cyan-500"
                         />
@@ -573,7 +626,11 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
                         <input
                           type="text"
                           value={setting.march25_26 || ''}
-                          onChange={(e) => handlePetSettingChange(m.game_id, 'march25_26', e.target.value)}
+                          onChange={(e) => {
+                            const updated = { ...petSettings, [m.game_id]: { ...(petSettings[m.game_id] || {}), march25_26: e.target.value } };
+                            setPetSettings(updated);
+                            saveLeaderToSupabase(m.game_id, { petSettingsMap: updated });
+                          }}
                           placeholder="行軍時間"
                           className="w-20 bg-[#151c2c] border border-slate-800 rounded px-2 py-1 text-xs text-center text-white focus:outline-none focus:border-cyan-500"
                         />
@@ -605,7 +662,7 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
           <div className="text-xs font-bold text-slate-300">追加配置:</div>
           <select
             value={newLeaderInput.slot}
-            onChange={(e) => setNewLeaderInput({ ...newLeaderInput, slot: e.target.value })}
+            onChange={(e) => setNewLeaderInput({ ...newLeaderInput, slot: e.target.value, gameId: '' })}
             className="bg-[#0b0f19] border border-slate-800 rounded px-2 py-1 text-xs text-white"
           >
             <option value="21-23">21-23</option>
@@ -628,7 +685,7 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
             className="bg-[#0b0f19] border border-slate-800 rounded px-2 py-1 text-xs text-white flex-1 min-w-[150px]"
           >
             <option value="">リーダーを選択</option>
-            {activeLeaders.map((m) => (
+            {availableLeadersForRally.map((m) => (
               <option key={m.game_id} value={m.game_id}>{m.name} ({m.alliance})</option>
             ))}
           </select>
