@@ -45,13 +45,13 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
   const [excludedGameIds, setExcludedGameIds] = useState<string[]>([]);
 
   const [rallyAssignments, setRallyAssignments] = useState<{ [slot: string]: { [pos: string]: string[] } }>({
-    '21-23': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
-    '23-25': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
-    '25-26': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+    '21-23': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+    '23-25': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+    '25-26': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
   });
   const [newLeaderInput, setNewLeaderInput] = useState<{ slot: string; pos: string; gameId: string }>({
     slot: '21-23',
-    pos: 'garrison',
+    pos: 'garrisonrally',
     gameId: '',
   });
 
@@ -149,9 +149,9 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
         const loadedExclusions: string[] = [];
         const loadedManuals: string[] = [];
         const loadedRally: { [slot: string]: { [pos: string]: string[] } } = {
-          '21-23': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
-          '23-25': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
-          '25-26': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+          '21-23': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+          '23-25': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+          '25-26': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
         };
 
         leaderData.forEach((item) => {
@@ -199,9 +199,9 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
         setExcludedGameIds([]);
         setManuallyAddedGameIds([]);
         setRallyAssignments({
-          '21-23': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
-          '23-25': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
-          '25-26': { garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+          '21-23': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+          '23-25': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
+          '25-26': { garrisonrally: [], garrison: [], ghost1: [], ghost2: [], ghost3: [] },
         });
       }
 
@@ -319,7 +319,7 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
     let r2325 = null;
     let r2526 = null;
 
-    ['garrison', 'ghost1', 'ghost2', 'ghost3'].forEach((pos) => {
+    ['garrisonrally', 'garrison', 'ghost1', 'ghost2', 'ghost3'].forEach((pos) => {
       if (currentRally['21-23']?.[pos]?.includes(gameId)) r2123 = pos;
       if (currentRally['23-25']?.[pos]?.includes(gameId)) r2325 = pos;
       if (currentRally['25-26']?.[pos]?.includes(gameId)) r2526 = pos;
@@ -364,11 +364,9 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
     saveInfoToSupabase(garrisonAlliance, val);
   };
 
-  // 💡 ペット時間の排他制御（1つのアカウントにつき1つだけチェック可能にする）
   const handlePetSettingChange = (gameId: string, field: string, checked: boolean) => {
     const currentSetting = petSettings[gameId] || {};
     
-    // チェックをオンにする場合は、他のペット時間を全て false にリセットする
     const updatedSetting = {
       ...currentSetting,
       pet21_23: field === 'pet21_23' ? checked : false,
@@ -429,11 +427,10 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
     return false;
   };
 
-  // 💡 ラリー設定で、現在選択中の時間枠（slot）にすでに配置されているアカウントIDのリストを取得
   const assignedGameIdsInCurrentSlot = useMemo(() => {
     const slotData = rallyAssignments[newLeaderInput.slot] || {};
     const ids: string[] = [];
-    ['garrison', 'ghost1', 'ghost2', 'ghost3'].forEach((pos) => {
+    ['garrisonrally', 'garrison', 'ghost1', 'ghost2', 'ghost3'].forEach((pos) => {
       if (slotData[pos]) {
         ids.push(...slotData[pos]);
       }
@@ -441,7 +438,6 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
     return ids;
   }, [rallyAssignments, newLeaderInput.slot]);
 
-  // 💡 既に同じ時間枠に配置されているリーダーをプルダウンの選択肢から除外
   const availableLeadersForRally = useMemo(() => {
     return activeLeaders.filter((m) => !assignedGameIdsInCurrentSlot.includes(m.game_id));
   }, [activeLeaders, assignedGameIdsInCurrentSlot]);
@@ -638,7 +634,7 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
                       <td className="p-3 text-center">
                         <button
                           onClick={() => handleRemoveMember(m.game_id)}
-                          className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded text-[10px] font-bold transition cursor-pointer"
+                          className="px-2 py-1 bg-rose-500/25 hover:bg-rose-500/40 text-rose-300 rounded text-[10px] font-bold transition cursor-pointer"
                           title="この行を削除（非表示にする）"
                         >
                           削除
@@ -674,7 +670,8 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
             onChange={(e) => setNewLeaderInput({ ...newLeaderInput, pos: e.target.value })}
             className="bg-[#0b0f19] border border-slate-800 rounded px-2 py-1 text-xs text-white"
           >
-            <option value="garrison">駐屯</option>
+            <option value="garrisonrally">駐屯(集結)</option>
+            <option value="garrison">駐屯(入替)</option>
             <option value="ghost1">ゴースト1</option>
             <option value="ghost2">ゴースト2</option>
             <option value="ghost3">ゴースト3</option>
@@ -702,7 +699,8 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
             <thead>
               <tr className="border-b border-slate-800 text-slate-400 bg-[#151c2c]/50">
                 <th className="p-3 w-28">時間枠</th>
-                <th className="p-3">駐屯</th>
+                <th className="p-3">駐屯(集結)</th>
+                <th className="p-3">駐屯(入替)</th>
                 <th className="p-3">ゴースト1</th>
                 <th className="p-3">ゴースト2</th>
                 <th className="p-3">ゴースト3</th>
@@ -714,7 +712,7 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
                 return (
                   <tr key={slot} className="hover:bg-slate-800/20">
                     <td className="p-3 font-bold text-cyan-300">{slot}</td>
-                    {(['garrison', 'ghost1', 'ghost2', 'ghost3'] as const).map((pos) => {
+                    {(['garrisonrally', 'garrison', 'ghost1', 'ghost2', 'ghost3'] as const).map((pos) => {
                       const assignedIds = slotAssigns[pos] || [];
                       return (
                         <td key={pos} className="p-3 align-top">

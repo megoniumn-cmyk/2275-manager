@@ -59,8 +59,9 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
   // 保存ステータス ('saved' | 'saving' | 'unsaved')
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
 
-  // 乗り手リスト用の同盟フィルター
+  // 乗り手リスト用の同盟フィルター & チームフィルター
   const [selectedAllianceFilter, setSelectedAllianceFilter] = useState<string>('ALL');
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('ALL');
 
   // チーム設定 (デフォルト A〜F)
   const [teamKeys, setTeamKeys] = useState<string[]>(['A', 'B', 'C', 'D', 'E', 'F']);
@@ -488,18 +489,34 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
       });
     };
 
-    const applyAllianceFilter = (list: any[]) => {
-      if (selectedAllianceFilter === 'ALL') return list;
-      return list.filter((m) => m.alliance === selectedAllianceFilter);
+    const applyFilters = (list: any[]) => {
+      return list.filter((m) => {
+        const gIdStr = String(m.game_id);
+        const assignedTeam = riderAssignments[gIdStr] || '';
+
+        // 同盟フィルターの判定
+        const matchesAlliance =
+          selectedAllianceFilter === 'ALL' || m.alliance === selectedAllianceFilter;
+
+        // チームフィルターの判定
+        let matchesTeam = true;
+        if (selectedTeamFilter === 'UNASSIGNED') {
+          matchesTeam = assignedTeam === '';
+        } else if (selectedTeamFilter !== 'ALL') {
+          matchesTeam = assignedTeam === selectedTeamFilter;
+        }
+
+        return matchesAlliance && matchesTeam;
+      });
     };
 
     return {
-      full: applyAllianceFilter(sortMembers(fullParticipation)),
-      mid: applyAllianceFilter(sortMembers(midParticipation)),
-      noPart: applyAllianceFilter(sortMembers(noParticipation)),
-      unanswered: applyAllianceFilter(sortMembers(noResponse, true)),
+      full: applyFilters(sortMembers(fullParticipation)),
+      mid: applyFilters(sortMembers(midParticipation)),
+      noPart: applyFilters(sortMembers(noParticipation)),
+      unanswered: applyFilters(sortMembers(noResponse, true)),
     };
-  }, [members, responseMap, allianceOrderMap, selectedAllianceFilter]);
+  }, [members, responseMap, allianceOrderMap, selectedAllianceFilter, selectedTeamFilter, riderAssignments]);
 
   const mainAllianceName = strategyInfo.main;
   const gostAllianceName = strategyInfo.gost_1;
@@ -750,20 +767,39 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
             <span>📋</span> 乗り手リスト
           </h3>
           
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">同盟フィルター:</span>
-            <select
-              value={selectedAllianceFilter}
-              onChange={(e) => setSelectedAllianceFilter(e.target.value)}
-              className="bg-[#151c2c] border border-slate-800 rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
-            >
-              <option value="ALL">すべての同盟</option>
-              {filterableAllianceNames.map((allName) => (
-                <option key={allName} value={allName}>
-                  {allName}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* チームフィルター */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">チームフィルター:</span>
+              <select
+                value={selectedTeamFilter}
+                onChange={(e) => setSelectedTeamFilter(e.target.value)}
+                className="bg-[#151c2c] border border-slate-800 rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                <option value="ALL">すべてのチーム</option>
+                <option value="UNASSIGNED">未割当</option>
+                {validTeams.map((k) => (
+                  <option key={k} value={k}>チーム {k}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 同盟フィルター */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400">同盟フィルター:</span>
+              <select
+                value={selectedAllianceFilter}
+                onChange={(e) => setSelectedAllianceFilter(e.target.value)}
+                className="bg-[#151c2c] border border-slate-800 rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                <option value="ALL">すべての同盟</option>
+                {filterableAllianceNames.map((allName) => (
+                  <option key={allName} value={allName}>
+                    {allName}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

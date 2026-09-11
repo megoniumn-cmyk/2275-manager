@@ -30,6 +30,13 @@ const PET_TIME_SLOTS = [
 ];
 
 const RIDER_TIME_SLOTS = ['21-23', '23-25', '24-26'];
+const UNIFIED_PARTICIPATION_TIME_SLOTS = ['21-23', '23-25', '25-26'];
+
+const TIME_SLOT_TO_DB_COL: { [key: string]: string } = {
+  '21-23': '2123',
+  '23-25': '2325',
+  '25-26': '2526',
+};
 
 export default function TabOperationConfirm({ selectedDate }: TabOperationConfirmProps) {
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
@@ -41,6 +48,9 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
   const [joiners, setJoiners] = useState<any[]>([]);
   const [formationSettings, setFormationSettings] = useState<{ [key: string]: any }>({});
   const [heroAssignments, setHeroAssignments] = useState<any[]>([]);
+  const [participationData, setParticipationData] = useState<{ [key: string]: string }>({});
+  
+  const [activeTeamColumns, setActiveTeamColumns] = useState<string[]>([]);
 
   const [mainGarrisonRows, setMainGarrisonRows] = useState<{ id?: string; col1: string; col2: string }[]>([
     { col1: '', col2: '' },
@@ -89,6 +99,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         { data: formSetData },
         { data: assignData },
         { data: memoData },
+        { data: partData },
       ] = await Promise.all([
         supabase.from('strategy_svs_leader').select('*').eq('survey_id', mId),
         supabase.from('svs_team').select('*').eq('survey_id', mId).order('team', { ascending: true }),
@@ -96,12 +107,33 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         supabase.from('svs_formation_settings').select('*').eq('survey_id', mId),
         supabase.from('svs_hero_assignments').select('*').eq('survey_id', mId),
         supabase.from('svs_operation_memos').select('*').eq('survey_id', mId).order('created_at', { ascending: true }),
+        supabase.from('svs_joiner_participation').select('*').eq('survey_id', mId),
       ]);
 
       if (leaderData) setLeaders(leaderData);
       if (teamData) setTeams(teamData);
       if (joinerData) setJoiners(joinerData);
       if (assignData) setHeroAssignments(assignData);
+
+      if (partData) {
+        const pMap: { [key: string]: string } = {};
+        const colSet = new Set<string>();
+
+        partData.forEach((item: any) => {
+          const teamKey = String(item.team || '');
+          if (teamKey) {
+            colSet.add(teamKey);
+            Object.keys(TIME_SLOT_TO_DB_COL).forEach((screenSlot) => {
+              const dbCol = TIME_SLOT_TO_DB_COL[screenSlot];
+              if (item[dbCol] !== undefined && item[dbCol] !== null) {
+                pMap[`${screenSlot}_${teamKey}`] = item[dbCol];
+              }
+            });
+          }
+        });
+        setParticipationData(pMap);
+        setActiveTeamColumns(Array.from(colSet).sort());
+      }
 
       if (memoData) {
         const mains = memoData.filter((m: any) => m.memo_type === 'main');
@@ -127,6 +159,46 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
 
     fetchData();
   }, [selectedDate]);
+
+  const handleParticipationChange = async (timeSlot: string, teamKey: string, value: string) => {
+    if (!surveyId || !teamKey) return;
+
+    const key = `${timeSlot}_${teamKey}`;
+    setParticipationData(prev => ({ ...prev, [key]: value }));
+
+    const currentVal21 = timeSlot === '21-23' ? value : (participationData[`21-23_${teamKey}`] || '');
+    const currentVal23 = timeSlot === '23-25' ? value : (participationData[`23-25_${teamKey}`] || '');
+    const currentVal25 = timeSlot === '25-26' ? value : (participationData[`25-26_${teamKey}`] || '');
+
+    const upsertData: any = {
+      survey_id: surveyId,
+      team: Number(teamKey) || teamKey,
+      updated_at: new Date().toISOString(),
+    };
+    upsertData['2123'] = currentVal21;
+    upsertData['2325'] = currentVal23;
+    upsertData['2526'] = currentVal25;
+
+    await supabase.from('svs_joiner_participation').upsert(upsertData, { onConflict: 'survey_id,team' });
+  };
+
+  const addTeamColumn = () => {
+    setActiveTeamColumns(prev => [...prev, '']);
+  };
+
+  const handleColumnTeamChange = async (colIndex: number, newTeamVal: string) => {
+    const updated = [...activeTeamColumns];
+    updated[colIndex] = newTeamVal;
+    setActiveTeamColumns(updated);
+  };
+
+  const removeTeamColumn = async (colIndex: number) => {
+    const targetTeamKey = activeTeamColumns[colIndex];
+    if (targetTeamKey && targetTeamKey !== '' && surveyId) {
+      await supabase.from('svs_joiner_participation').delete().eq('survey_id', surveyId).eq('team', Number(targetTeamKey) || targetTeamKey);
+    }
+    setActiveTeamColumns(prev => prev.filter((_, idx) => idx !== colIndex));
+  };
 
   const addRow = async (type: 'main' | 'enemy') => {
     if (!surveyId) return;
@@ -248,21 +320,24 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         });
         wsData.push([]);
         wsData.push(['■ ラリー表 (時間帯別)']);
-        wsData.push(['時間帯', '駐屯', 'ゴースト1', 'ゴースト2', 'ゴースト3']);
+        wsData.push(['時間帯', '駐屯(集結)', '駐屯(入替)', 'ゴースト1', 'ゴースト2', 'ゴースト3']);
         const rallySlotsData = [
           { timeLabel: '21-23', rField: 'r_2123', mField: 'm_2123', pCheck: (l: any) => !!l.p_2123 },
-          { timeLabel: '23-24', rField: 'r_2325', mField: 'm_2324', pCheck: (l: any) => !!l.p_2325 },
+          { timeLabel: '23-24', rField: 'r_2325', mField: 'm_2324', pCheck: (l: any) => !!l.p_2325 || !!l.p_2426 },
           { timeLabel: '24-25', rField: 'r_2325', mField: 'm_2425', pCheck: (l: any) => !!l.p_2325 || !!l.p_2426 },
           { timeLabel: '25-26', rField: 'r_2526', mField: 'm_2526', pCheck: (l: any) => !!l.p_2426 },
         ];
         rallySlotsData.forEach((slot) => {
-          const cols = ['garrison', 'ghost1', 'ghost2', 'ghost3'];
-          const rowValues: any[5] = [slot.timeLabel];
+          const cols = ['garrisonrally', 'garrison', 'ghost1', 'ghost2', 'ghost3'];
+          const rowValues: any[6] = [slot.timeLabel];
+          let hasAnyMatched = false;
           cols.forEach((col) => {
             const matched = leaders.filter((l) => (l[slot.rField] || '').toLowerCase() === col);
-            rowValues.push(matched.map(l => `${l.name}${l[slot.mField] ? ` (${l[slot.mField]}s)` : ''}`).join(', '));
+            const valStr = matched.map(l => `${l.name}${l[slot.mField] ? ` (${l[slot.mField]}s)` : ''}`).join(', ');
+            if (valStr) hasAnyMatched = true;
+            rowValues.push(valStr);
           });
-          wsData.push(rowValues);
+          if (hasAnyMatched) wsData.push(rowValues);
         });
         wsData.push([]);
         wsData.push(['■ 編成表（リーダー）']);
@@ -292,10 +367,66 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
           const pFieldKey = timeSlot === '21-23' ? 'p_2123' : timeSlot === '23-25' ? 'p_2325' : 'p_2426';
           const rowValues: any[] = [timeSlot];
           teams.forEach((t) => {
-            const matched = joiners.filter((j) => j.team === t.team && j[pFieldKey] === true);
+            const matched = joiners.filter((j) => String(j.team) === String(t.team) && j[pFieldKey] === true);
             rowValues.push(matched.map(j => j.name).join(', '));
           });
           wsData.push(rowValues);
+        });
+        wsData.push([]);
+        wsData.push(['■ 時間帯別・集結参加リスト']);
+        const activeCols = activeTeamColumns.filter(tKey => tKey !== '');
+        const partHeaders = ['時間帯', ...activeCols.map(tKey => {
+          const tObj = teams.find(t => String(t.team) === String(tKey));
+          return `チーム ${tKey}${tObj?.alliance ? `(${tObj.alliance})` : ''}`;
+        })];
+        wsData.push(partHeaders);
+        UNIFIED_PARTICIPATION_TIME_SLOTS.forEach((timeSlot) => {
+          const rowValues: any[] = [timeSlot];
+          activeCols.forEach(tKey => {
+            rowValues.push(participationData[`${timeSlot}_${tKey}`] || '');
+          });
+          wsData.push(rowValues);
+        });
+
+        wsData.push([]);
+        wsData.push(['■ 乗り手指定英雄・構成']);
+        FORMATION_KEYS.forEach((form) => {
+          const setting = formationSettings[form.key];
+          if (!setting || setting.enabled !== true) return;
+          const joinerHeroes = [setting.joiner_hero_1, setting.joiner_hero_2, setting.joiner_hero_3, setting.joiner_hero_4].filter(Boolean);
+          if (joinerHeroes.length === 0) return;
+
+          wsData.push([form.label, `比率: ${setting.ratio_shield ?? 0}:${setting.ratio_spear ?? 0}:${setting.ratio_bow ?? 0}`]);
+          wsData.push(['チーム', '役割(順)', ...joinerHeroes]);
+
+          teams.forEach((t) => {
+            const assignRow = heroAssignments.find(
+              (a) => a.survey_id === surveyId && a.formation_key === form.key && String(a.team) === String(t.team)
+            );
+            if (!assignRow) return;
+            const hasData = Object.keys(assignRow).some((k) => 
+              (k.includes('assign') || k.includes('memo') || k.includes('hero_assignflag') || k.includes('hero_assignfalg')) && assignRow[k]
+            );
+            if (!hasData) return;
+
+            [1, 2, 3].forEach((seq) => {
+              const rowVals: any[] = [seq === 1 ? `チーム ${t.team}` : '', seq];
+              joinerHeroes.forEach((_, hIdx) => {
+                const heroNum = hIdx + 1;
+                const flagVal = assignRow[`hero_assignflag${heroNum}`] ?? assignRow[`hero_assignfalg${heroNum}`];
+                const memoVal = assignRow[`hero_memo${heroNum}`];
+                const isNoAssign = flagVal === true || flagVal === 'true' || flagVal === 1;
+
+                if (isNoAssign) {
+                  rowVals.push(seq === 1 ? (memoVal || '指定なし') : '-');
+                } else {
+                  rowVals.push(assignRow[`hero_${heroNum}_assign_${seq}`] || '-');
+                }
+              });
+              wsData.push(rowVals);
+            });
+          });
+          wsData.push([]);
         });
       } else {
         sheetName = '作戦画面メモシート';
@@ -314,18 +445,14 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
       }
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
-
       const range = XLSX.utils.decode_range(ws['!ref'] || "A1");
       for (let R = range.s.r; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
           const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
           const cell = ws[cellAddress];
           if (!cell) continue;
-
           if (!cell.s) cell.s = {};
-
           const cellValue = String(cell.v || '');
-
           if (cellValue.startsWith('■')) {
             cell.s = sectionHeaderStyle;
           } else if (
@@ -340,7 +467,6 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
       }
 
       ws['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 22 }, { wch: 15 }, { wch: 35 }];
-
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
       XLSX.writeFile(wb, `${sheetName}_${selectedDate}.xlsx`);
     } catch (err) {
@@ -368,9 +494,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
 
   return (
     <div className="space-y-12 pb-12">
-      {/* ========================================================================= */}
       {/* ① 集結主 セクション */}
-      {/* ========================================================================= */}
       <div className="space-y-4">
         <div className="flex justify-between items-center border-b border-slate-800 pb-2">
           <h2 className="text-sm font-bold text-cyan-400 flex items-center gap-2">
@@ -427,9 +551,10 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
             <h3 className="text-xs font-bold text-slate-200">■ ラリー表 (時間帯別)</h3>
             <div className="space-y-4">
               {rallySlots.map((slot) => {
-                const columns = ['garrison', 'ghost1', 'ghost2', 'ghost3'];
+                const columns = ['garrisonrally', 'garrison', 'ghost1', 'ghost2', 'ghost3'];
                 const columnLabels: { [key: string]: string } = {
-                  garrison: '駐屯',
+                  garrisonrally: '駐屯(集結)',
+                  garrison: '駐屯(入替)',
                   ghost1: 'ゴースト1',
                   ghost2: 'ゴースト2',
                   ghost3: 'ゴースト3',
@@ -502,6 +627,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
             </div>
           </div>
 
+          {/* 画面上のリーダー編成表 */}
           <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm">
             <h3 className="text-xs font-bold text-slate-200">■ 編成表（リーダー）</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -552,9 +678,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         </div>
       </div>
 
-      {/* ========================================================================= */}
       {/* ② 乗り手チーム セクション */}
-      {/* ========================================================================= */}
       <div className="space-y-4">
         <div className="flex justify-between items-center border-b border-slate-800 pb-2">
           <h2 className="text-sm font-bold text-cyan-400 flex items-center gap-2">
@@ -587,11 +711,11 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                   <tr className="border-b border-slate-800 text-slate-400 bg-slate-900/50">
                     <th className="p-2.5 font-medium w-24 border-r border-slate-800">時間帯</th>
                     {teams.map((t) => (
-                      <th key={t.team} className="p-2.5 font-medium border-l border-slate-800 text-center">
-                        <div className="text-cyan-300 font-bold">チーム {t.team}</div>
-                        <div className="text-[10px] text-slate-400 font-normal">({t.alliance || '-'})</div>
+                      <th key={t.team} className="p-2.5 font-medium border-l border-slate-800 text-center min-w-[120px]">
+                        <div className="text-cyan-300 font-bold whitespace-nowrap">チーム {t.team}</div>
+                        <div className="text-[10px] text-slate-400 font-normal whitespace-nowrap">({t.alliance || '-'})</div>
                         {t.position && (
-                          <div className="text-[10px] text-amber-400 font-semibold mt-0.5">{t.position}</div>
+                          <div className="text-[10px] text-amber-400 font-semibold mt-0.5 whitespace-nowrap">{t.position}</div>
                         )}
                       </th>
                     ))}
@@ -605,7 +729,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                         <td className="p-2.5 font-bold text-cyan-300 bg-[#0b0f19] border-r border-slate-800 text-center">{timeSlot}</td>
                         {teams.map((t) => {
                           const matchedJoiners = joiners.filter(
-                            (j) => j.team === t.team && j[pFieldKey] === true
+                            (j) => String(j.team) === String(t.team) && j[pFieldKey] === true
                           );
                           return (
                             <td key={t.team} className="p-2.5 border-l border-slate-800 align-top bg-[#0b0f19]/40">
@@ -614,7 +738,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                                   <span className="text-[11px] text-slate-500">-</span>
                                 ) : (
                                   matchedJoiners.map((j, jIdx) => (
-                                    <span key={jIdx} className="px-2.5 py-1 bg-slate-900 border border-slate-700 text-white rounded text-[11px]">
+                                    <span key={jIdx} className="px-2 py-0.5 bg-slate-900 border border-slate-700 text-white rounded text-[11px] whitespace-nowrap">
                                       {j.name}
                                     </span>
                                   ))
@@ -632,13 +756,110 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
           </div>
 
           <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm">
+            <h3 className="text-xs font-bold text-slate-200">■ 時間帯別・集結参加リスト</h3>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse border border-slate-800">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 bg-slate-900/50">
+                    <th className="p-2.5 font-medium w-24 border-r border-slate-800 text-center">時間帯</th>
+                    
+                    {activeTeamColumns.map((teamKey, colIndex) => {
+                      const selectedTeamObj = teams.find(t => String(t.team) === String(teamKey));
+                      return (
+                        <th key={colIndex} className="p-2.5 font-medium border-l border-slate-800 min-w-[160px]">
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                              <select
+                                value={teamKey}
+                                onChange={(e) => handleColumnTeamChange(colIndex, e.target.value)}
+                                className="bg-[#0b0f19] border border-slate-700 rounded px-2 py-1 text-xs text-cyan-300 font-bold focus:outline-none focus:border-cyan-500 w-full"
+                              >
+                                <option value="">チームを選択...</option>
+                                {teams.map(t => (
+                                  <option key={t.team} value={t.team}>
+                                    チーム {t.team} {t.alliance ? `(${t.alliance})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => removeTeamColumn(colIndex)}
+                                className="text-rose-400 hover:text-rose-300 text-[10px] px-1.5 py-0.5 bg-rose-950/40 border border-rose-900/50 rounded cursor-pointer ml-1 shrink-0"
+                                title="この列を削除"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            {selectedTeamObj?.position && (
+                              <div className="text-[10px] text-amber-400 font-normal">{selectedTeamObj.position}</div>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
+
+                    <th className="p-2.5 border-l border-slate-800 text-right">
+                      <button
+                        type="button"
+                        onClick={addTeamColumn}
+                        className="px-3 py-1 bg-cyan-950 text-cyan-400 border border-cyan-800 rounded text-xs font-bold hover:bg-cyan-900 transition-colors cursor-pointer flex items-center gap-1 ml-auto"
+                      >
+                        <span>＋</span> チームを追加
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeTeamColumns.length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="p-4 text-center text-slate-500 text-xs">
+                        「+ チームを追加」ボタンを押してチーム列を追加してください。
+                      </td>
+                    </tr>
+                  ) : (
+                    UNIFIED_PARTICIPATION_TIME_SLOTS.map((timeSlot) => (
+                      <tr key={timeSlot} className="border-t border-slate-800">
+                        <td className="p-2.5 font-bold text-cyan-300 bg-[#0b0f19] border-r border-slate-800 text-center align-middle">
+                          {timeSlot}
+                        </td>
+                        
+                        {activeTeamColumns.map((teamKey, colIndex) => {
+                          const val = teamKey !== '' ? (participationData[`${timeSlot}_${teamKey}`] || '') : '';
+                          return (
+                            <td key={colIndex} className="p-2.5 border-l border-slate-800 align-top bg-[#0b0f19]/40">
+                              <input
+                                type="text"
+                                value={val}
+                                onChange={(e) => {
+                                  if (teamKey !== '') {
+                                    handleParticipationChange(timeSlot, teamKey, e.target.value);
+                                  }
+                                }}
+                                disabled={teamKey === ''}
+                                placeholder={teamKey === '' ? 'チーム未選択' : '入力...'}
+                                className="w-full bg-[#0b0f19] border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                              />
+                            </td>
+                          );
+                        })}
+
+                        <td className="border-l border-slate-800 bg-[#0b0f19]/20"></td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm">
             <h3 className="text-xs font-bold text-slate-200">■ 乗り手指定英雄・構成</h3>
             <div className="space-y-6">
               {FORMATION_KEYS.map((form) => {
                 const setting = formationSettings[form.key];
                 if (!setting || setting.enabled !== true) return null;
 
-                const isJoinerAssign = !!setting.joiner_assign;
                 const joinerHeroes = [
                   setting.joiner_hero_1,
                   setting.joiner_hero_2,
@@ -650,105 +871,111 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
 
                 const activeTeams = teams.filter((t) => {
                   const assignRow = heroAssignments.find(
-                    (a) => a.survey_id === surveyId && a.formation_key === form.key && a.team === t.team
+                    (a) => a.survey_id === surveyId && a.formation_key === form.key && String(a.team) === String(t.team)
                   );
                   if (!assignRow) return false;
-                  return Object.keys(assignRow).some((k) => k.includes('assign') && assignRow[k]);
+                  return Object.keys(assignRow).some((k) => 
+                    (k.includes('assign') || k.includes('memo') || k.includes('hero_assignflag') || k.includes('hero_assignfalg')) && assignRow[k]
+                  );
                 });
 
-                if (isJoinerAssign && activeTeams.length === 0) return null;
-
-                const ratioShield = setting.ratio_shield ?? 0;
-                const ratioSpear = setting.ratio_spear ?? 0;
-                const ratioBow = setting.ratio_bow ?? 0;
+                if (activeTeams.length === 0) return null;
 
                 return (
                   <div key={form.key} className="bg-[#0b0f19] border border-slate-800 rounded-lg p-4 space-y-3">
                     <div className="text-xs font-bold text-cyan-300 border-b border-slate-800 pb-1.5 flex justify-between items-center">
                       <span>{form.label}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-cyan-400 text-xs">比率: {ratioShield}:{ratioSpear}:{ratioBow}</span>
-                        <span className="text-[10px] px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400">
-                          {isJoinerAssign ? '指定英雄設定あり' : '乗り手英雄表示'}
-                        </span>
-                      </div>
+                      <span className="font-mono text-cyan-400 text-xs">比率: {setting.ratio_shield ?? 0}:{setting.ratio_spear ?? 0}:{setting.ratio_bow ?? 0}</span>
                     </div>
 
-                    {isJoinerAssign ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead>
-                            <tr className="border-b border-slate-800 text-slate-400">
-                              <th className="p-2 font-medium w-20">チーム</th>
-                              <th className="p-2 font-medium w-24 border-l border-slate-800">役割 (順)</th>
-                              {joinerHeroes.map((hName, hIdx) => (
-                                <th key={hIdx} className="p-2 font-medium border-l border-slate-800 whitespace-nowrap">{hName}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {activeTeams.map((t) => {
-                              const assignRow = heroAssignments.find(
-                                (a) => a.survey_id === surveyId && a.formation_key === form.key && a.team === t.team
-                              );
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse border border-slate-800">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-slate-400 bg-slate-900/50">
+                            <th className="p-2 font-medium w-24 border-r border-slate-800">チーム</th>
+                            <th className="p-2 font-medium w-20 border-r border-slate-800">役割(順)</th>
+                            {joinerHeroes.map((hName, hIdx) => (
+                              <th key={hIdx} className="p-2 font-medium border-l border-slate-800 whitespace-nowrap">{hName}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeTeams.map((t) => {
+                            const assignRow = heroAssignments.find(
+                              (a) => a.survey_id === surveyId && a.formation_key === form.key && String(a.team) === String(t.team)
+                            );
 
-                              const rowsData = [1, 2, 3].map((seq) => {
-                                const slots = joinerHeroes.map((_, hIdx) => {
-                                  if (hIdx === 0) {
-                                    return seq === 1 
-                                      ? (assignRow?.hero_1_assign_1 ?? assignRow?.assign_1) 
-                                      : seq === 2 
-                                      ? assignRow?.hero_1_assign_2 
-                                      : assignRow?.hero_1_assign_3;
-                                  } else if (hIdx === 1) {
-                                    return seq === 1 ? assignRow?.hero_2_assign_1 : seq === 2 ? assignRow?.hero_2_assign_2 : assignRow?.hero_2_assign_3;
-                                  } else if (hIdx === 2) {
-                                    return seq === 1 ? assignRow?.hero_3_assign_1 : seq === 2 ? assignRow?.hero_3_assign_2 : assignRow?.hero_3_assign_3;
-                                  } else if (hIdx === 3) {
-                                    return seq === 1 ? assignRow?.hero_4_assign_1 : seq === 2 ? assignRow?.hero_4_assign_2 : assignRow?.hero_4_assign_3;
-                                  }
+                            return [1, 2, 3].map((seq) => {
+                              const heroSlots = joinerHeroes.map((_, hIdx) => {
+                                const heroNum = hIdx + 1;
+                                const flagVal = assignRow?.[`hero_assignflag${heroNum}`] ?? assignRow?.[`hero_assignfalg${heroNum}`];
+                                const memoVal = assignRow?.[`hero_memo${heroNum}`];
+                                
+                                const isNoAssign = flagVal === true || flagVal === 'true' || flagVal === 1;
+
+                                if (isNoAssign) {
+                                  if (seq === 1) return memoVal || '指定なし';
                                   return null;
-                                });
-                                const roleLabel = String(seq);
-                                return { seq, roleLabel, slots };
+                                } else {
+                                  const assignKey = `hero_${heroNum}_assign_${seq}`;
+                                  return assignRow?.[assignKey] || null;
+                                }
                               });
 
-                              return rowsData.map((rd, rIdx) => (
-                                <tr key={`${t.team}-${rd.seq}`} className={rIdx === 0 ? "border-t border-slate-800" : "border-t border-slate-800/40"}>
-                                  {rIdx === 0 && (
-                                    <td rowSpan={3} className="p-2 font-bold text-cyan-200 align-middle border-r border-slate-800/60">
+                              return (
+                                <tr key={`${t.team}-${seq}`} className="border-t border-slate-800">
+                                  {seq === 1 && (
+                                    <td rowSpan={3} className="p-2 font-bold text-cyan-200 align-middle border-r border-slate-800 bg-slate-900/30">
                                       チーム {t.team}
                                     </td>
                                   )}
-                                  <td className="p-2 text-slate-300 font-medium border-l border-slate-800">
-                                    {rd.roleLabel}
-                                  </td>
-                                  {rd.slots.map((name, hIdx) => (
-                                    <td key={hIdx} className="p-2 border-l border-slate-800 align-top">
-                                      {name ? (
-                                        <div className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[11px] text-white inline-block whitespace-nowrap">
-                                          {name}
-                                        </div>
-                                      ) : (
-                                        <span className="text-[11px] text-slate-600">-</span>
-                                      )}
-                                    </td>
-                                  ))}
+                                  <td className="p-2 text-slate-300 font-medium border-r border-slate-800">{seq}</td>
+                                  {heroSlots.map((val, hIdx) => {
+                                    const heroNum = hIdx + 1;
+                                    const flagVal = assignRow?.[`hero_assignflag${heroNum}`] ?? assignRow?.[`hero_assignfalg${heroNum}`];
+                                    const isNoAssign = flagVal === true || flagVal === 'true' || flagVal === 1;
+
+                                    if (isNoAssign) {
+                                      if (seq === 1) {
+                                        return (
+                                          <td key={hIdx} className="p-2 border-l border-slate-800 align-top">
+                                            {val ? (
+                                              <div className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[11px] text-white inline-block whitespace-nowrap">
+                                                {val}
+                                              </div>
+                                            ) : (
+                                              <span className="text-[11px] text-slate-600">-</span>
+                                            )}
+                                          </td>
+                                        );
+                                      } else {
+                                        return (
+                                          <td key={hIdx} className="p-2 border-l border-slate-800 align-top">
+                                            <span className="text-[11px] text-slate-600">-</span>
+                                          </td>
+                                        );
+                                      }
+                                    }
+
+                                    return (
+                                      <td key={hIdx} className="p-2 border-l border-slate-800 align-top">
+                                        {val ? (
+                                          <div className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[11px] text-white inline-block whitespace-nowrap">
+                                            {val}
+                                          </div>
+                                        ) : (
+                                          <span className="text-[11px] text-slate-600">-</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
                                 </tr>
-                              ));
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {joinerHeroes.map((hName, hIdx) => (
-                          <div key={hIdx} className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white flex items-center gap-1.5 whitespace-nowrap">
-                            <span className="text-cyan-400">🔹</span> {hName}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                              );
+                            });
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               })}
@@ -757,9 +984,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         </div>
       </div>
 
-      {/* ========================================================================= */}
       {/* ③ 作戦画面メモ・指示 セクション */}
-      {/* ========================================================================= */}
       <div className="space-y-4">
         <div className="flex justify-between items-center border-b border-slate-800 pb-2">
           <h2 className="text-sm font-bold text-cyan-400 flex items-center gap-2">
@@ -870,20 +1095,15 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 画面外：セクション①用 Export専用DOM */}
-      {/* ========================================================================= */}
+      {/* 画面外：セクション①用 Export専用DOM（リーダー編成表を追加） */}
       <div className="absolute left-[-9999px] top-[-9999px]" style={{ pointerEvents: 'none' }}>
         <div ref={exportRef1} className="w-[1000px] bg-white text-slate-900 p-8 font-sans space-y-6">
           <div className="border-b-2 border-slate-900 pb-3 flex justify-between items-end">
             <div>
               <h1 className="text-xl font-bold text-slate-900">① 集結主・ラリー確認シート</h1>
-              <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line font-medium">
-                {exportSubtitle}
-              </p>
+              <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line font-medium">{exportSubtitle}</p>
             </div>
           </div>
-
           <div>
             <h2 className="text-xs font-bold text-slate-900 border-l-4 border-slate-900 pl-2 mb-2">■ ペット時間一覧</h2>
             <div className="grid grid-cols-3 gap-4">
@@ -900,9 +1120,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                         <span className="text-[10px] text-slate-400">該当者なし</span>
                       ) : (
                         matchedLeaders.map((l, idx) => (
-                          <span key={idx} className="px-1.5 py-0.5 bg-white border border-slate-300 text-slate-800 rounded text-[10px]">
-                            {l.name}
-                          </span>
+                          <span key={idx} className="px-1.5 py-0.5 bg-white border border-slate-300 text-slate-800 rounded text-[10px]">{l.name}</span>
                         ))
                       )}
                     </div>
@@ -911,14 +1129,14 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
               })}
             </div>
           </div>
-
           <div>
             <h2 className="text-xs font-bold text-slate-900 border-l-4 border-slate-900 pl-2 mb-2">■ ラリー表 (時間帯別)</h2>
             <table className="w-full text-xs border-collapse border border-slate-400 text-center">
               <thead>
                 <tr className="bg-[#2a437e] text-white font-bold">
                   <th className="border border-slate-400 p-1.5 w-20">時間帯</th>
-                  <th className="border border-slate-400 p-1.5">駐屯</th>
+                  <th className="border border-slate-400 p-1.5">駐屯(集結)</th>
+                  <th className="border border-slate-400 p-1.5">駐屯(入替)</th>
                   <th className="border border-slate-400 p-1.5">ゴースト1</th>
                   <th className="border border-slate-400 p-1.5">ゴースト2</th>
                   <th className="border border-slate-400 p-1.5">ゴースト3</th>
@@ -926,7 +1144,12 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
               </thead>
               <tbody>
                 {rallySlots.map((slot) => {
-                  const cols = ['garrison', 'ghost1', 'ghost2', 'ghost3'];
+                  const cols = ['garrisonrally', 'garrison', 'ghost1', 'ghost2', 'ghost3'];
+                  const hasAnyMatched = cols.some((col) => {
+                    const matched = leaders.filter((l) => (l[slot.rField] || '').toLowerCase() === col);
+                    return matched.length > 0;
+                  });
+                  if (!hasAnyMatched) return null;
                   return (
                     <tr key={slot.timeLabel} className="border-b border-slate-300">
                       <td className="border border-slate-400 p-2 font-bold bg-slate-50">{slot.timeLabel}</td>
@@ -934,19 +1157,15 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                         const matched = leaders.filter((l) => (l[slot.rField] || '').toLowerCase() === col);
                         return (
                           <td key={col} className="border border-slate-400 p-1.5 align-top text-left">
-                            {matched.length === 0 ? (
-                              <span className="text-slate-300">-</span>
-                            ) : (
-                              matched.map((l, i) => {
-                                const isPetActive = slot.pCheck(l);
-                                return (
-                                  <div key={i} className={`text-[11px] ${isPetActive ? 'font-bold text-amber-700' : 'text-slate-800'}`}>
-                                    {l.name}
-                                    {l[slot.mField] && <span className="text-[9px] text-slate-500 font-normal"> ({l[slot.mField]}s)</span>}
-                                  </div>
-                                );
-                              })
-                            )}
+                            {matched.map((l, i) => {
+                              const isPetActive = slot.pCheck(l);
+                              return (
+                                <div key={i} className={`text-[11px] ${isPetActive ? 'font-bold text-amber-700' : 'text-slate-800'}`}>
+                                  {l.name}
+                                  {l[slot.mField] && <span className="text-[9px] text-slate-500 font-normal"> ({l[slot.mField]}s)</span>}
+                                </div>
+                              );
+                            })}
                           </td>
                         );
                       })}
@@ -957,30 +1176,41 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
             </table>
           </div>
 
+          {/* 画像Export用DOM側のリーダー編成表 */}
           <div>
             <h2 className="text-xs font-bold text-slate-900 border-l-4 border-slate-900 pl-2 mb-2">■ 編成表（リーダー）</h2>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3">
               {FORMATION_KEYS.map((form) => {
                 const setting = formationSettings[form.key];
                 if (!setting || setting.enabled !== true) return null;
+
                 return (
-                  <div key={form.key} className="border border-slate-300 rounded p-2.5 bg-slate-50 flex justify-between items-center text-xs">
-                    <div className="space-y-0.5">
-                      <div>
-                        <span className="font-bold text-[#2a437e] mr-3">{form.label}</span>
-                        <span className="text-slate-700 mr-2">盾：{setting.shield_hero || '-'}</span>
-                        <span className="text-slate-700 mr-2">槍：{setting.spear_hero || '-'}</span>
-                        <span className="text-slate-700">弓：{setting.bow_hero || '-'}</span>
-                      </div>
-                      {setting.memo && (
-                        <div className="text-slate-600 text-[11px] whitespace-pre-wrap">
-                          {setting.memo}
-                        </div>
-                      )}
+                  <div key={form.key} className="border border-slate-300 rounded p-3 bg-slate-50 space-y-2">
+                    <div className="text-xs font-bold text-[#2a437e] border-b border-slate-300 pb-1">
+                      {form.label}
                     </div>
-                    <span className="font-mono font-bold text-slate-900 text-center shrink-0 ml-4">
-                      {setting.ratio_shield ?? 0}:{setting.ratio_spear ?? 0}:{setting.ratio_bow ?? 0}
-                    </span>
+                    <div className="grid grid-cols-3 text-center gap-1 bg-white border border-slate-300 rounded p-1.5">
+                      <div>
+                        <div className="text-[9px] text-slate-500">盾英雄</div>
+                        <div className="text-[11px] font-medium">{setting.shield_hero || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] text-slate-500">槍英雄</div>
+                        <div className="text-[11px] font-medium">{setting.spear_hero || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] text-slate-500">弓英雄</div>
+                        <div className="text-[11px] font-medium">{setting.bow_hero || '-'}</div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] bg-white border border-slate-300 rounded px-2 py-1">
+                      <span className="text-slate-500">比率</span>
+                      <span className="font-mono font-bold text-[#2a437e]">{setting.ratio_shield ?? 0}:{setting.ratio_spear ?? 0}:{setting.ratio_bow ?? 0}</span>
+                    </div>
+                    <div className="text-[11px] bg-white border border-slate-300 rounded px-2 py-1">
+                      <span className="text-slate-500 block text-[9px]">備考</span>
+                      <span className="text-slate-800 whitespace-pre-wrap">{setting.memo || '-'}</span>
+                    </div>
                   </div>
                 );
               })}
@@ -989,20 +1219,15 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         </div>
       </div>
 
-      {/* ========================================================================= */}
       {/* 画面外：セクション②用 Export専用DOM */}
-      {/* ========================================================================= */}
       <div className="absolute left-[-9999px] top-[-9999px]" style={{ pointerEvents: 'none' }}>
         <div ref={exportRef2} className="w-[1000px] bg-white text-slate-900 p-8 font-sans space-y-6">
           <div className="border-b-2 border-slate-900 pb-3 flex justify-between items-end">
             <div>
               <h1 className="text-xl font-bold text-slate-900">② 乗り手チーム確認シート</h1>
-              <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line font-medium">
-                {exportSubtitle}
-              </p>
+              <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line font-medium">{exportSubtitle}</p>
             </div>
           </div>
-
           <div>
             <h2 className="text-xs font-bold text-slate-900 border-l-4 border-slate-900 pl-2 mb-2">■ 乗り手チーム編成（ペット時間帯別）</h2>
             <table className="w-full text-xs border-collapse border border-slate-400">
@@ -1012,7 +1237,6 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                   {teams.map((t) => (
                     <th key={t.team} className="border border-slate-400 p-2.5">
                       チーム {t.team} <span className="text-[10px] font-normal">({t.alliance || '-'})</span>
-                      {t.position && <div className="text-[10px] text-amber-200 mt-0.5">{t.position}</div>}
                     </th>
                   ))}
                 </tr>
@@ -1024,20 +1248,14 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                     <tr key={timeSlot}>
                       <td className="border border-slate-400 p-2.5 font-bold bg-slate-50 text-center">{timeSlot}</td>
                       {teams.map((t) => {
-                        const matched = joiners.filter((j) => j.team === t.team && j[pFieldKey] === true);
+                        const matched = joiners.filter((j) => String(j.team) === String(t.team) && j[pFieldKey] === true);
                         return (
                           <td key={t.team} className="border border-slate-400 p-2.5 align-top bg-white">
-                            <div className="flex flex-wrap gap-1">
-                              {matched.length === 0 ? (
-                                <span className="text-slate-300">-</span>
-                              ) : (
-                                matched.map((j, jIdx) => (
-                                  <span key={jIdx} className="px-2.5 py-1 bg-slate-100 border border-slate-300 rounded text-[11px] text-slate-800">
-                                    {j.name}
-                                  </span>
-                                ))
-                              )}
-                            </div>
+                            {matched.map((j, jIdx) => (
+                              <span key={jIdx} className="px-2 py-0.5 bg-slate-100 border border-slate-300 rounded text-[11px] text-slate-800 whitespace-nowrap inline-block mr-1 mb-1">
+                                {j.name}
+                              </span>
+                            ))}
                           </td>
                         );
                       })}
@@ -1049,116 +1267,109 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
           </div>
 
           <div>
+            <h2 className="text-xs font-bold text-slate-900 border-l-4 border-slate-900 pl-2 mb-2">■ 時間帯別・集結参加リスト</h2>
+            <table className="w-full text-xs border-collapse border border-slate-400">
+              <thead>
+                <tr className="bg-[#2a437e] text-white text-center">
+                  <th className="border border-slate-400 p-2.5 w-28">時間帯</th>
+                  {activeTeamColumns.filter(t => t !== '').map((tKey, colIndex) => {
+                    const tObj = teams.find(t => String(t.team) === String(tKey));
+                    return (
+                      <th key={`${tKey}-${colIndex}`} className="border border-slate-400 p-2.5">
+                        チーム {tKey}{tObj?.alliance ? `(${tObj.alliance})` : ''}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {UNIFIED_PARTICIPATION_TIME_SLOTS.map((timeSlot) => (
+                  <tr key={timeSlot}>
+                    <td className="border border-slate-400 p-2.5 font-bold bg-slate-50 text-center">{timeSlot}</td>
+                    {activeTeamColumns.filter(t => t !== '').map((tKey, colIndex) => (
+                      <td key={`${tKey}-${colIndex}`} className="border border-slate-400 p-2.5 bg-white align-top">
+                        {participationData[`${timeSlot}_${tKey}`] || '-'}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
             <h2 className="text-xs font-bold text-slate-900 border-l-4 border-slate-900 pl-2 mb-2">■ 乗り手指定英雄・構成</h2>
             <div className="space-y-4">
               {FORMATION_KEYS.map((form) => {
                 const setting = formationSettings[form.key];
                 if (!setting || setting.enabled !== true) return null;
-
-                const isJoinerAssign = !!setting.joiner_assign;
-                const joinerHeroes = [
-                  setting.joiner_hero_1,
-                  setting.joiner_hero_2,
-                  setting.joiner_hero_3,
-                  setting.joiner_hero_4,
-                ].filter(Boolean);
-
+                const joinerHeroes = [setting.joiner_hero_1, setting.joiner_hero_2, setting.joiner_hero_3, setting.joiner_hero_4].filter(Boolean);
                 if (joinerHeroes.length === 0) return null;
 
                 const activeTeams = teams.filter((t) => {
                   const assignRow = heroAssignments.find(
-                    (a) => a.survey_id === surveyId && a.formation_key === form.key && a.team === t.team
+                    (a) => a.survey_id === surveyId && a.formation_key === form.key && String(a.team) === String(t.team)
                   );
                   if (!assignRow) return false;
-                  return Object.keys(assignRow).some((k) => k.includes('assign') && assignRow[k]);
+                  return Object.keys(assignRow).some((k) => 
+                    (k.includes('assign') || k.includes('memo') || k.includes('hero_assignflag') || k.includes('hero_assignfalg')) && assignRow[k]
+                  );
                 });
-
-                if (isJoinerAssign && activeTeams.length === 0) return null;
-
-                const ratioShield = setting.ratio_shield ?? 0;
-                const ratioSpear = setting.ratio_spear ?? 0;
-                const ratioBow = setting.ratio_bow ?? 0;
+                if (activeTeams.length === 0) return null;
 
                 return (
-                  <div key={form.key}>
-                    <div className="text-xs font-bold bg-slate-200 px-3 py-1.5 border border-slate-400 border-b-0 rounded-t-md text-[#2a437e] flex justify-between items-center">
+                  <div key={form.key} className="border border-slate-300 rounded p-3 bg-slate-50 space-y-2">
+                    <div className="text-xs font-bold text-[#2a437e] flex justify-between">
                       <span>{form.label}</span>
-                      <span className="font-mono text-slate-700">比率: {ratioShield}:{ratioSpear}:{ratioBow}</span>
+                      <span className="font-mono">比率: {setting.ratio_shield ?? 0}:{setting.ratio_spear ?? 0}:{setting.ratio_bow ?? 0}</span>
                     </div>
+                    <table className="w-full text-xs border-collapse border border-slate-400 text-center">
+                      <thead>
+                        <tr className="bg-slate-200 text-slate-800 font-bold">
+                          <th className="border border-slate-400 p-1.5 w-20">チーム</th>
+                          <th className="border border-slate-400 p-1.5 w-16">役割</th>
+                          {joinerHeroes.map((hName, idx) => (
+                            <th key={idx} className="border border-slate-400 p-1.5">{hName}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeTeams.map((t) => {
+                          const assignRow = heroAssignments.find(
+                            (a) => a.survey_id === surveyId && a.formation_key === form.key && String(a.team) === String(t.team)
+                          );
+                          return [1, 2, 3].map((seq) => (
+                            <tr key={`${t.team}-${seq}`} className="border-b border-slate-300 bg-white">
+                              {seq === 1 && (
+                                <td rowSpan={3} className="border border-slate-400 p-1.5 font-bold bg-slate-50 align-middle">
+                                  チーム {t.team}
+                                </td>
+                              )}
+                              <td className="border border-slate-400 p-1.5 font-semibold text-slate-600">{seq}</td>
+                              {joinerHeroes.map((_, hIdx) => {
+                                const heroNum = hIdx + 1;
+                                const flagVal = assignRow?.[`hero_assignflag${heroNum}`] ?? assignRow?.[`hero_assignfalg${heroNum}`];
+                                const memoVal = assignRow?.[`hero_memo${heroNum}`];
+                                const isNoAssign = flagVal === true || flagVal === 'true' || flagVal === 1;
 
-                    {isJoinerAssign ? (
-                      <table className="w-full text-xs border-collapse border border-slate-400 text-center">
-                        <thead>
-                          <tr className="bg-[#2a437e] text-white">
-                            <th className="border border-slate-400 p-2 w-20">チーム</th>
-                            <th className="border border-slate-400 p-2 w-20">役割 (順)</th>
-                            {joinerHeroes.map((hName, idx) => (
-                              <th key={idx} className="border border-slate-400 p-2 whitespace-nowrap">{hName}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {activeTeams.map((t) => {
-                            const assignRow = heroAssignments.find(
-                              (a) => a.survey_id === surveyId && a.formation_key === form.key && a.team === t.team
-                            );
-                            return [1, 2, 3].map((seq, sIdx) => {
-                              let names: (string | null)[] = [];
-                              if (seq === 1) {
-                                names = [
-                                  assignRow?.hero_1_assign_1 ?? assignRow?.assign_1,
-                                  assignRow?.hero_2_assign_1,
-                                  assignRow?.hero_3_assign_1,
-                                  assignRow?.hero_4_assign_1,
-                                ];
-                              } else if (seq === 2) {
-                                names = [
-                                  assignRow?.hero_1_assign_2,
-                                  assignRow?.hero_2_assign_2,
-                                  assignRow?.hero_3_assign_2,
-                                  assignRow?.hero_4_assign_2,
-                                ];
-                              } else {
-                                names = [
-                                  assignRow?.hero_1_assign_3,
-                                  assignRow?.hero_2_assign_3,
-                                  assignRow?.hero_3_assign_3,
-                                  assignRow?.hero_4_assign_3,
-                                ];
-                              }
+                                let cellText = '-';
+                                if (isNoAssign) {
+                                  if (seq === 1) cellText = memoVal || '指定なし';
+                                } else {
+                                  cellText = assignRow?.[`hero_${heroNum}_assign_${seq}`] || '-';
+                                }
 
-                              const roleLabel = String(seq);
-
-                              return (
-                                <tr key={`${t.team}-${seq}`}>
-                                  {sIdx === 0 && (
-                                    <td rowSpan={3} className="border border-slate-400 p-2 font-bold bg-slate-50 align-middle">
-                                      チーム {t.team}
-                                    </td>
-                                  )}
-                                  <td className="border border-slate-400 p-2 bg-slate-50 text-slate-700">
-                                    {roleLabel}
+                                return (
+                                  <td key={hIdx} className="border border-slate-400 p-1.5 text-left text-[11px]">
+                                    {cellText}
                                   </td>
-                                  {joinerHeroes.map((_, hIdx) => (
-                                    <td key={hIdx} className="border border-slate-400 p-2 text-left whitespace-nowrap bg-white">
-                                      {names[hIdx] || '-'}
-                                    </td>
-                                  ))}
-                                </tr>
-                              );
-                            });
-                          })}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <div className="border border-slate-400 border-t-0 p-3 bg-white flex flex-wrap gap-2 rounded-b-md">
-                        {joinerHeroes.map((hName, idx) => (
-                          <span key={idx} className="px-2.5 py-1 bg-slate-100 border border-slate-300 rounded text-xs text-slate-800 whitespace-nowrap">
-                            🔹 {hName}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                                );
+                              })}
+                            </tr>
+                          ));
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 );
               })}
@@ -1167,67 +1378,39 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         </div>
       </div>
 
-      {/* ========================================================================= */}
       {/* 画面外：セクション③用 Export専用DOM */}
-      {/* ========================================================================= */}
       <div className="absolute left-[-9999px] top-[-9999px]" style={{ pointerEvents: 'none' }}>
         <div ref={exportRef3} className="w-[1000px] bg-white text-slate-900 p-8 font-sans space-y-6">
           <div className="border-b-2 border-slate-900 pb-3 flex justify-between items-end">
             <div>
               <h1 className="text-xl font-bold text-slate-900">③ 作戦画面メモ・指示シート</h1>
-              <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line font-medium">
-                {exportSubtitle}
-              </p>
+              <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line font-medium">{exportSubtitle}</p>
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-6">
             <div className="border border-slate-400 rounded-md overflow-hidden bg-white shadow-sm">
-              <h2 className="text-xs font-bold bg-[#2a437e] text-white px-3 py-2 border-b border-slate-400">
-                ■ メイン同盟が駐屯している時
-              </h2>
+              <h2 className="text-xs font-bold bg-[#2a437e] text-white px-3 py-2 border-b border-slate-400">■ メイン同盟が駐屯している時</h2>
               <table className="w-full text-xs border-collapse">
                 <tbody>
                   {mainGarrisonRows.map((r, i) => (
                     <tr key={r.id || i} className="border-b border-slate-300 last:border-b-0">
-                      <td className="border-r border-slate-300 p-3 w-1/2 align-top whitespace-pre-wrap bg-white">
-                        {r.col1 || '-'}
-                      </td>
-                      <td className="p-3 w-1/2 align-top whitespace-pre-wrap bg-white">
-                        {r.col2 || '-'}
-                      </td>
+                      <td className="border-r border-slate-300 p-3 w-1/2 align-top whitespace-pre-wrap bg-white">{r.col1 || '-'}</td>
+                      <td className="p-3 w-1/2 align-top whitespace-pre-wrap bg-white">{r.col2 || '-'}</td>
                     </tr>
                   ))}
-                  {mainGarrisonRows.length === 0 && (
-                    <tr>
-                      <td colSpan={2} className="p-4 text-center text-slate-400 bg-white">（記載なし）</td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
-
             <div className="border border-slate-400 rounded-md overflow-hidden bg-white shadow-sm">
-              <h2 className="text-xs font-bold bg-[#2a437e] text-white px-3 py-2 border-b border-slate-400">
-                ■ 敵同盟が駐屯している時
-              </h2>
+              <h2 className="text-xs font-bold bg-[#2a437e] text-white px-3 py-2 border-b border-slate-400">■ 敵同盟が駐屯している時</h2>
               <table className="w-full text-xs border-collapse">
                 <tbody>
                   {enemyGarrisonRows.map((r, i) => (
                     <tr key={r.id || i} className="border-b border-slate-300 last:border-b-0">
-                      <td className="border-r border-slate-300 p-3 w-1/2 align-top whitespace-pre-wrap bg-white">
-                        {r.col1 || '-'}
-                      </td>
-                      <td className="p-3 w-1/2 align-top whitespace-pre-wrap bg-white">
-                        {r.col2 || '-'}
-                      </td>
+                      <td className="border-r border-slate-300 p-3 w-1/2 align-top whitespace-pre-wrap bg-white">{r.col1 || '-'}</td>
+                      <td className="p-3 w-1/2 align-top whitespace-pre-wrap bg-white">{r.col2 || '-'}</td>
                     </tr>
                   ))}
-                  {enemyGarrisonRows.length === 0 && (
-                    <tr>
-                      <td colSpan={2} className="p-4 text-center text-slate-400 bg-white">（記載なし）</td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>

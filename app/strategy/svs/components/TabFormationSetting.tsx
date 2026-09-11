@@ -12,6 +12,14 @@ type TabFormationSettingProps = {
   selectedDate: string;
 };
 
+type TeamRow = {
+  id: string;
+  team: string;
+  assigns: { [heroIdx: number]: string[] }; // { 0: [s1, s2, s3], 1: [s1, s2, s3], ... }
+  flags: { [heroIdx: number]: boolean };    // { 0: true/false, 1: ... }
+  memos: { [heroIdx: number]: string };     // { 0: 'memo', 1: ... }
+};
+
 const FORMATION_KEYS = [
   { key: 'garrison_spear', label: '駐屯(槍編成)', type: 'garrison' },
   { key: 'garrison_bow', label: '駐屯(弓編成)', type: 'garrison' },
@@ -40,7 +48,7 @@ export default function TabFormationSetting({ selectedDate }: TabFormationSettin
 
   // 編成設定の状態
   const [formationSettings, setFormationSettings] = useState<{ [key: string]: any }>({});
-  const [heroAssignments, setHeroAssignments] = useState<{ [formKey: string]: { id: string; team: string; assigns: { [heroName: string]: string[] } }[] }>({});
+  const [heroAssignments, setHeroAssignments] = useState<{ [formKey: string]: TeamRow[] }>({});
 
   // 1. 英雄マスタおよび基本データを取得
   useEffect(() => {
@@ -152,50 +160,50 @@ export default function TabFormationSetting({ selectedDate }: TabFormationSettin
 
       const { data: heroAssignData } = await supabase.from('svs_hero_assignments').select('*').eq('survey_id', mId);
 
-      const loadedAssignments: { [key: string]: { id: string; team: string; assigns: { [heroName: string]: string[] } }[] } = {};
+      const loadedAssignments: { [key: string]: TeamRow[] } = {};
       FORMATION_KEYS.forEach((f) => {
         loadedAssignments[f.key] = [];
       });
 
       if (heroAssignData) {
-        heroAssignData.forEach((item, idx: number) => {
-          const setting = loadedSettings[item.formation_key] || {};
-          const activeHeroes: string[] = [
-            setting.joiner_hero_1,
-            setting.joiner_hero_2,
-            setting.joiner_hero_3,
-            setting.joiner_hero_4,
-          ].filter(Boolean) as string[];
-          
-          const assignsMap: { [heroName: string]: string[] } = {};
-          
-          activeHeroes.forEach((h: string, hIdx: number) => {
-            if (hIdx === 0) {
-              assignsMap[h] = [item.hero_1_assign_1 ?? item.assign_1 ?? '', item.hero_1_assign_2 ?? item.assign_2 ?? '', item.hero_1_assign_3 ?? item.assign_3 ?? ''];
-            } else if (hIdx === 1) {
-              assignsMap[h] = [item.hero_2_assign_1 || '', item.hero_2_assign_2 || '', item.hero_2_assign_3 || ''];
-            } else if (hIdx === 2) {
-              assignsMap[h] = [item.hero_3_assign_1 || '', item.hero_3_assign_2 || '', item.hero_3_assign_3 || ''];
-            } else if (hIdx === 3) {
-              assignsMap[h] = [item.hero_4_assign_1 || '', item.hero_4_assign_2 || '', item.hero_4_assign_3 || ''];
-            } else {
-              assignsMap[h] = ['', '', ''];
-            }
-          });
+        heroAssignData.forEach((item, idx) => {
+          const fKey = item.formation_key;
+          const tName = item.team || 'A';
 
-          if (!loadedAssignments[item.formation_key]) {
-            loadedAssignments[item.formation_key] = [];
-          }
+          if (!loadedAssignments[fKey]) loadedAssignments[fKey] = [];
 
-          loadedAssignments[item.formation_key].push({
-            id: item.id ? String(item.id) : `${item.team}_${idx}`,
-            team: item.team,
-            assigns: assignsMap,
+          // 各英雄ごとのカラムから復元 (hero_1_assign_1〜3, hero_2_assign_1〜3 など)
+          const assigns: { [k: number]: string[] } = {
+            0: [item.hero_1_assign_1 || '', item.hero_1_assign_2 || '', item.hero_1_assign_3 || ''],
+            1: [item.hero_2_assign_1 || '', item.hero_2_assign_2 || '', item.hero_2_assign_3 || ''],
+            2: [item.hero_3_assign_1 || '', item.hero_3_assign_2 || '', item.hero_3_assign_3 || ''],
+            3: [item.hero_4_assign_1 || '', item.hero_4_assign_2 || '', item.hero_4_assign_3 || ''],
+          };
+
+          const flags: { [k: number]: boolean } = {
+            0: !!item.hero_assignfalg1,
+            1: !!item.hero_assignfalg2,
+            2: !!item.hero_assignfalg3,
+            3: !!item.hero_assignfalg4,
+          };
+
+          const memos: { [k: number]: string } = {
+            0: item.hero_memo1 || '',
+            1: item.hero_memo2 || '',
+            2: item.hero_memo3 || '',
+            3: item.hero_memo4 || '',
+          };
+
+          loadedAssignments[fKey].push({
+            id: item.id ? String(item.id) : `row_${fKey}_${tName}_${idx}`,
+            team: tName,
+            assigns,
+            flags,
+            memos,
           });
         });
       }
       setHeroAssignments(loadedAssignments);
-
       setIsInitializing(false);
     }
 
@@ -204,6 +212,7 @@ export default function TabFormationSetting({ selectedDate }: TabFormationSettin
 
   const getFilteredJoinersForHero = (heroName: string, rowTeam: string) => {
     const teamJoiners = joiners.filter((j) => j.team === rowTeam);
+    if (!heroName) return teamJoiners;
     const heroObj = allJoinerHeroes.find((h) => h.name === heroName);
     if (!heroObj || !heroObj.joiner_skill_survey) return teamJoiners;
 
@@ -276,7 +285,7 @@ export default function TabFormationSetting({ selectedDate }: TabFormationSettin
       }, { onConflict: 'survey_id,formation_key' });
 
       if (error) {
-        console.error('Failed to save formation setting:', error);
+        console.error('Failed to save formation setting:', error.message || error);
         setSaveStatus('unsaved');
       } else {
         setSaveStatus('saved');
@@ -284,95 +293,116 @@ export default function TabFormationSetting({ selectedDate }: TabFormationSettin
     }
   };
 
-  const handleAddTeamRow = async (formKey: string) => {
+  const handleAddTeamRow = (formKey: string) => {
     const currentRows = heroAssignments[formKey] || [];
     const defaultTeam = availableTeams[0] || 'A';
-    const setting = formationSettings[formKey] || {};
-    const activeHeroes: string[] = [
-      setting.joiner_hero_1,
-      setting.joiner_hero_2,
-      setting.joiner_hero_3,
-      setting.joiner_hero_4,
-    ].filter(Boolean) as string[];
 
-    const initialAssigns: { [heroName: string]: string[] } = {};
-    activeHeroes.forEach((h: string) => {
-      initialAssigns[h] = ['', '', ''];
-    });
+    const newRow: TeamRow = {
+      id: `temp_${Date.now()}_${Math.random()}`,
+      team: defaultTeam,
+      assigns: { 0: ['', '', ''], 1: ['', '', ''], 2: ['', '', ''], 3: ['', '', ''] },
+      flags: { 0: false, 1: false, 2: false, 3: false },
+      memos: { 0: '', 1: '', 2: '', 3: '' },
+    };
 
-    const newRowId = Math.random().toString(36).substring(2, 9);
-    const updatedRows = [...currentRows, { id: newRowId, team: defaultTeam, assigns: initialAssigns }];
     setHeroAssignments({
       ...heroAssignments,
-      [formKey]: updatedRows,
+      [formKey]: [...currentRows, newRow],
     });
-
-    if (surveyId) {
-      setSaveStatus('saving');
-      const { error } = await supabase.from('svs_hero_assignments').insert({
-        survey_id: surveyId,
-        formation_key: formKey,
-        team: defaultTeam,
-        assign_1: null,
-        assign_2: null,
-        assign_3: null,
-      });
-
-      if (error) {
-        console.error('Failed to insert team row:', error);
-        setSaveStatus('unsaved');
-      } else {
-        setSaveStatus('saved');
-      }
-    }
   };
 
-  const handleRemoveTeamRow = async (formKey: string, rowId: string, teamKey: string) => {
+  const handleRemoveTeamRow = async (formKey: string, rowId: string) => {
     const currentRows = heroAssignments[formKey] || [];
+    const targetRow = currentRows.find((r) => r.id === rowId);
+    
     const updatedRows = currentRows.filter((r) => r.id !== rowId);
     setHeroAssignments({
       ...heroAssignments,
       [formKey]: updatedRows,
     });
 
-    if (surveyId) {
+    if (surveyId && targetRow && !targetRow.id.startsWith('temp_')) {
       await supabase
         .from('svs_hero_assignments')
         .delete()
-        .eq('survey_id', surveyId)
-        .eq('formation_key', formKey)
-        .eq('team', teamKey);
+        .eq('id', targetRow.id);
     }
   };
 
-  const handleAssignmentChange = async (formKey: string, rowId: string, teamKey: string, heroName: string, slotIndex: number, memberName: string) => {
+  const saveRowToSupabase = async (formKey: string, targetRow: TeamRow) => {
+    if (!surveyId) return;
+    setSaveStatus('saving');
+
+    const a0 = targetRow.assigns[0] || ['', '', ''];
+    const a1 = targetRow.assigns[1] || ['', '', ''];
+    const a2 = targetRow.assigns[2] || ['', '', ''];
+    const a3 = targetRow.assigns[3] || ['', '', ''];
+
+    const payload: any = {
+      survey_id: surveyId,
+      formation_key: formKey,
+      team: targetRow.team,
+      // 英雄1
+      hero_1_assign_1: a0[0] || null,
+      hero_1_assign_2: a0[1] || null,
+      hero_1_assign_3: a0[2] || null,
+      hero_assignfalg1: !!targetRow.flags[0],
+      hero_memo1: targetRow.memos[0] || '',
+      // 英雄2
+      hero_2_assign_1: a1[0] || null,
+      hero_2_assign_2: a1[1] || null,
+      hero_2_assign_3: a1[2] || null,
+      hero_assignfalg2: !!targetRow.flags[1],
+      hero_memo2: targetRow.memos[1] || '',
+      // 英雄3
+      hero_3_assign_1: a2[0] || null,
+      hero_3_assign_2: a2[1] || null,
+      hero_3_assign_3: a2[2] || null,
+      hero_assignfalg3: !!targetRow.flags[2],
+      hero_memo3: targetRow.memos[2] || '',
+      // 英雄4
+      hero_4_assign_1: a3[0] || null,
+      hero_4_assign_2: a3[1] || null,
+      hero_4_assign_3: a3[2] || null,
+      hero_assignfalg4: !!targetRow.flags[3],
+      hero_memo4: targetRow.memos[3] || '',
+    };
+
+    if (!targetRow.id.startsWith('temp_')) {
+      payload.id = targetRow.id;
+    }
+
+    const { data, error } = await supabase
+      .from('svs_hero_assignments')
+      .upsert(payload)
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Failed to save assignment row:', error.message || error);
+      setSaveStatus('unsaved');
+    } else {
+      setSaveStatus('saved');
+      if (data && data.id && targetRow.id.startsWith('temp_')) {
+        targetRow.id = String(data.id);
+      }
+    }
+  };
+
+  const handleAssignmentChange = async (formKey: string, rowId: string, heroIdx: number, slotIndex: number, memberName: string) => {
     const currentRows = heroAssignments[formKey] || [];
     const targetRow = currentRows.find((r) => r.id === rowId);
     if (!targetRow) return;
 
-    if (memberName !== '') {
-      const currentHeroAssigns = targetRow.assigns[heroName] || ['', '', ''];
-      const isDuplicateInSameHero = currentHeroAssigns.some((val, idx) => idx !== slotIndex && val === memberName);
-
-      const isDuplicateInSameSlot = Object.entries(targetRow.assigns).some(([hName, assigns]) => {
-        return assigns[slotIndex] === memberName;
-      });
-
-      if (isDuplicateInSameHero || isDuplicateInSameSlot) {
-        memberName = '';
-      }
-    }
-
     const updatedRows = currentRows.map((row) => {
       if (row.id === rowId) {
-        const heroAssigns = [...(row.assigns[heroName] || ['', '', ''])];
+        const heroAssigns = [...(row.assigns[heroIdx] || ['', '', ''])];
         heroAssigns[slotIndex] = memberName;
         return {
           ...row,
-          team: teamKey,
           assigns: {
             ...row.assigns,
-            [heroName]: heroAssigns,
+            [heroIdx]: heroAssigns,
           },
         };
       }
@@ -385,48 +415,60 @@ export default function TabFormationSetting({ selectedDate }: TabFormationSettin
     });
 
     const newTargetRow = updatedRows.find((r) => r.id === rowId);
-    if (surveyId && newTargetRow) {
-      setSaveStatus('saving');
-      const setting = formationSettings[formKey] || {};
-      const activeHeroes: string[] = [
-        setting.joiner_hero_1,
-        setting.joiner_hero_2,
-        setting.joiner_hero_3,
-        setting.joiner_hero_4,
-      ].filter(Boolean) as string[];
+    if (newTargetRow) {
+      await saveRowToSupabase(formKey, newTargetRow);
+    }
+  };
 
-      const h1 = activeHeroes[0] ? newTargetRow.assigns[activeHeroes[0]] || ['', '', ''] : ['', '', ''];
-      const h2 = activeHeroes[1] ? newTargetRow.assigns[activeHeroes[1]] || ['', '', ''] : ['', '', ''];
-      const h3 = activeHeroes[2] ? newTargetRow.assigns[activeHeroes[2]] || ['', '', ''] : ['', '', ''];
-      const h4 = activeHeroes[3] ? newTargetRow.assigns[activeHeroes[3]] || ['', '', ''] : ['', '', ''];
-
-      const { error } = await supabase.from('svs_hero_assignments').upsert({
-        survey_id: surveyId,
-        formation_key: formKey,
-        team: newTargetRow.team,
-        assign_1: h1[0] || null,
-        assign_2: h1[1] || null,
-        assign_3: h1[2] || null,
-        hero_1_assign_1: h1[0] || null,
-        hero_1_assign_2: h1[1] || null,
-        hero_1_assign_3: h1[2] || null,
-        hero_2_assign_1: h2[0] || null,
-        hero_2_assign_2: h2[1] || null,
-        hero_2_assign_3: h2[2] || null,
-        hero_3_assign_1: h3[0] || null,
-        hero_3_assign_2: h3[1] || null,
-        hero_3_assign_3: h3[2] || null,
-        hero_4_assign_1: h4[0] || null,
-        hero_4_assign_2: h4[1] || null,
-        hero_4_assign_3: h4[2] || null,
-      }, { onConflict: 'survey_id,formation_key,team' });
-
-      if (error) {
-        console.error('Failed to save assignment:', error);
-        setSaveStatus('unsaved');
-      } else {
-        setSaveStatus('saved');
+  const handleHeroFlagChange = async (formKey: string, rowId: string, heroIdx: number, checked: boolean) => {
+    const currentRows = heroAssignments[formKey] || [];
+    const updatedRows = currentRows.map((row) => {
+      if (row.id === rowId) {
+        return {
+          ...row,
+          flags: {
+            ...row.flags,
+            [heroIdx]: checked,
+          },
+        };
       }
+      return row;
+    });
+
+    setHeroAssignments({
+      ...heroAssignments,
+      [formKey]: updatedRows,
+    });
+
+    const newTargetRow = updatedRows.find((r) => r.id === rowId);
+    if (newTargetRow) {
+      await saveRowToSupabase(formKey, newTargetRow);
+    }
+  };
+
+  const handleHeroMemoChange = async (formKey: string, rowId: string, heroIdx: number, memoValue: string) => {
+    const currentRows = heroAssignments[formKey] || [];
+    const updatedRows = currentRows.map((row) => {
+      if (row.id === rowId) {
+        return {
+          ...row,
+          memos: {
+            ...row.memos,
+            [heroIdx]: memoValue,
+          },
+        };
+      }
+      return row;
+    });
+
+    setHeroAssignments({
+      ...heroAssignments,
+      [formKey]: updatedRows,
+    });
+
+    const newTargetRow = updatedRows.find((r) => r.id === rowId);
+    if (newTargetRow) {
+      await saveRowToSupabase(formKey, newTargetRow);
     }
   };
 
@@ -806,7 +848,7 @@ export default function TabFormationSetting({ selectedDate }: TabFormationSettin
 
                   {activeJoinerHeroes.length === 0 ? (
                     <div className="text-xs text-slate-500 py-3 text-center">
-                      ℹ️ この編成には乗り英雄が選択されていないため、指定英雄設定は利用できません。（「編成・比率設定」で乗り英雄を選択してください）
+                      ℹ️ この編成には乗り英雄が選択されていないため、指定英雄設定は利用できません。
                     </div>
                   ) : setting.joiner_assign && (
                     <div className="space-y-3 pt-2">
@@ -816,84 +858,120 @@ export default function TabFormationSetting({ selectedDate }: TabFormationSettin
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {rows.map((row) => (
-                            <div key={row.id} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-3 space-y-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-slate-400 font-bold">チーム:</span>
-                                  <select
-                                    value={row.team}
-                                    onChange={(e) => {
-                                      const newTeam = e.target.value;
-                                      const updated = rows.map((r) => (r.id === row.id ? { ...r, team: newTeam } : r));
-                                      setHeroAssignments({ ...heroAssignments, [form.key]: updated });
-                                    }}
-                                    className="bg-[#151c2c] border border-slate-800 rounded px-2 py-1 text-xs text-cyan-300 font-bold focus:outline-none focus:border-cyan-500"
+                          {rows.map((row) => {
+                            const rAssigns = row.assigns || {};
+                            const rFlags = row.flags || {};
+                            const rMemos = row.memos || {};
+
+                            return (
+                              <div key={row.id} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-3 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-slate-400 font-bold">チーム:</span>
+                                    <select
+                                      value={row.team}
+                                      onChange={async (e) => {
+                                        const newTeam = e.target.value;
+                                        const updated = rows.map((r) => (r.id === row.id ? { ...r, team: newTeam } : r));
+                                        setHeroAssignments({ ...heroAssignments, [form.key]: updated });
+                                        const target = updated.find((r) => r.id === row.id);
+                                        if (target) {
+                                          await saveRowToSupabase(form.key, target);
+                                        }
+                                      }}
+                                      className="bg-[#151c2c] border border-slate-800 rounded px-2 py-1 text-xs text-cyan-300 font-bold focus:outline-none focus:border-cyan-500"
+                                    >
+                                      {availableTeams.length === 0 ? (
+                                        <option value="A">チーム A</option>
+                                      ) : (
+                                        availableTeams.map((t) => (<option key={t} value={t}>チーム {t}</option>))
+                                      )}
+                                    </select>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTeamRow(form.key, row.id)}
+                                    className="text-[10px] text-rose-400 hover:text-rose-300 px-2 py-1 bg-rose-950/40 border border-rose-900/50 rounded cursor-pointer"
                                   >
-                                    {availableTeams.length === 0 ? (
-                                      <option value="A">チーム A</option>
-                                    ) : (
-                                      availableTeams.map((t) => (<option key={t} value={t}>チーム {t}</option>))
-                                    )}
-                                  </select>
+                                    削除
+                                  </button>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveTeamRow(form.key, row.id, row.team)}
-                                  className="text-[10px] text-rose-400 hover:text-rose-300 px-2 py-1 bg-rose-950/40 border border-rose-900/50 rounded cursor-pointer"
-                                >
-                                  削除
-                                </button>
-                              </div>
 
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                {activeJoinerHeroes.map((heroName: string, heroIdx: number) => {
-                                  const heroAssigns = row.assigns[heroName] || ['', '', ''];
-                                  const filteredJoiners = getFilteredJoinersForHero(heroName, row.team);
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                  {activeJoinerHeroes.map((heroName: string, heroIdx: number) => {
+                                    const heroAssigns = rAssigns[heroIdx] || ['', '', ''];
+                                    const isNoAssign = !!rFlags[heroIdx];
+                                    const memoVal = rMemos[heroIdx] || '';
+                                    const filteredJoiners = getFilteredJoinersForHero(heroName, row.team);
 
-                                  return (
-                                    /* keyにインデックスを含めることで同じ名前の英雄が複数あっても重複エラーを防ぐ */
-                                    <div key={`${heroName}-${heroIdx}`} className="bg-[#151c2c] border border-slate-800/80 rounded-lg p-2.5 space-y-2">
-                                      <div className="text-[11px] font-bold text-cyan-200 border-b border-slate-800 pb-1">
-                                        {heroName}
+                                    return (
+                                      <div key={`${heroName}-${heroIdx}`} className="bg-[#151c2c] border border-slate-800/80 rounded-lg p-2.5 space-y-2">
+                                        <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                                          <div className="text-[11px] font-bold text-cyan-200">
+                                            {heroName} <span className="text-[9px] text-slate-500">#{heroIdx + 1}</span>
+                                          </div>
+                                          <label className="flex items-center gap-1 cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={isNoAssign}
+                                              onChange={(e) => handleHeroFlagChange(form.key, row.id, heroIdx, e.target.checked)}
+                                              className="rounded border-slate-700 bg-slate-900 text-cyan-400 w-3 h-3 accent-cyan-400 cursor-pointer"
+                                            />
+                                            <span className="text-[9px] text-slate-400">指定しない</span>
+                                          </label>
+                                        </div>
+
+                                        {isNoAssign ? (
+                                          <div className="space-y-1 pt-1">
+                                            <label className="text-[10px] text-slate-400 font-bold">備考</label>
+                                            <input
+                                              type="text"
+                                              value={memoVal}
+                                              onChange={(e) => handleHeroMemoChange(form.key, row.id, heroIdx, e.target.value)}
+                                              placeholder="別途指示を入力"
+                                              className="w-full bg-[#0b0f19] border border-slate-800 rounded px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div className="space-y-1.5">
+                                            {[0, 1, 2].map((slotIdx) => {
+                                              const currentSelectedVal = heroAssigns[slotIdx] || '';
+                                              return (
+                                                <div key={slotIdx} className="flex items-center gap-1">
+                                                  <span className="text-[10px] text-slate-500 w-4">{slotIdx + 1}</span>
+                                                  <select
+                                                    value={currentSelectedVal}
+                                                    onChange={(e) => handleAssignmentChange(form.key, row.id, heroIdx, slotIdx, e.target.value)}
+                                                    className="w-full bg-[#0b0f19] border border-slate-800 rounded px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500"
+                                                  >
+                                                    <option value="">未割当</option>
+                                                    {filteredJoiners.map((j) => {
+                                                      const isAlreadyInSameHero = heroAssigns.some((val, idx) => idx !== slotIdx && val === j.name);
+                                                      const isAlreadyInSameSlot = Object.entries(rAssigns).some(([hIdxStr, assigns]) => {
+                                                        return Number(hIdxStr) !== heroIdx && (assigns as string[])[slotIdx] === j.name;
+                                                      });
+
+                                                      if ((isAlreadyInSameHero || isAlreadyInSameSlot) && currentSelectedVal !== j.name) {
+                                                        return null;
+                                                      }
+
+                                                      return (
+                                                        <option key={j.game_id || j.name} value={j.name}>{j.name}</option>
+                                                      );
+                                                    })}
+                                                  </select>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
                                       </div>
-                                      <div className="space-y-1.5">
-                                        {[0, 1, 2].map((slotIdx) => {
-                                          const currentSelectedVal = heroAssigns[slotIdx] || '';
-                                          return (
-                                            <div key={slotIdx} className="flex items-center gap-1">
-                                              <span className="text-[10px] text-slate-500 w-4">{slotIdx + 1}</span>
-                                              <select
-                                                value={currentSelectedVal}
-                                                onChange={(e) => handleAssignmentChange(form.key, row.id, row.team, heroName, slotIdx, e.target.value)}
-                                                className="w-full bg-[#0b0f19] border border-slate-800 rounded px-2 py-1 text-[11px] text-white focus:outline-none focus:border-cyan-500"
-                                              >
-                                                <option value="">未割当</option>
-                                                {filteredJoiners.map((j) => {
-                                                  const isAlreadyInSameHero = heroAssigns.some((val, idx) => idx !== slotIdx && val === j.name);
-                                                  const isAlreadyInSameSlot = Object.entries(row.assigns).some(([hName, assigns]) => {
-                                                    return assigns[slotIdx] === j.name;
-                                                  });
-
-                                                  if ((isAlreadyInSameHero || isAlreadyInSameSlot) && currentSelectedVal !== j.name) {
-                                                    return null;
-                                                  }
-
-                                                  return (
-                                                    <option key={j.game_id || j.name} value={j.name}>{j.name}</option>
-                                                  );
-                                                })}
-                                              </select>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                                    );
+                                  })}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
