@@ -112,6 +112,14 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         localStorage.setItem('logged_in_game_id', profileData.game_id);
       }
 
+      // ★ 本人がアクセスしてログインが確認できたタイミングで直近のログイン日時を更新
+      if (profileData && profileData.id) {
+        await supabase
+          .from('profiles')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', profileData.id);
+      }
+
       const currentActiveRoles: string[] = ['member'];
 
       if (profileData) {
@@ -191,6 +199,12 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       if (error || !data) throw new Error(lang === 'en' ? 'Game ID not found' : 'ゲームIDが見つかりません');
       if (data.status === 'left') throw new Error(lang === 'en' ? 'This account has left the alliance' : 'このアカウントは退会済みです');
       if (data.password && data.password !== passwordInput) throw new Error(lang === 'en' ? 'Incorrect password' : 'パスワードが違います');
+
+      // ★ ログイン成功時にも即座に `last_login_at` を更新
+      await supabase
+        .from('profiles')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('id', data.id);
 
       localStorage.setItem('logged_in_game_id', gameIdInput);
       setLoading(true);

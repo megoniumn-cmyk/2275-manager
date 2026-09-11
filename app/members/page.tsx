@@ -409,7 +409,6 @@ export default function MembersPage() {
       shield_soldier: editingMember.shield_soldier === '' ? null : editingMember.shield_soldier,
       spear_soldier: editingMember.spear_soldier === '' ? null : editingMember.spear_soldier,
       bow_soldier: editingMember.bow_soldier === '' ? null : editingMember.bow_soldier,
-      // ▼ 総力(移民前)が空欄の場合は null または undefined にして保存（0に変換されないようにする）
       power_before_migration: (editingMember.power_before_migration === '' || editingMember.power_before_migration === null || editingMember.power_before_migration === undefined) ? null : editingMember.power_before_migration,
       is_in_2275: parseBoolean(editingMember.is_in_2275),
       leader: parseBoolean(editingMember.leader),
@@ -457,6 +456,19 @@ export default function MembersPage() {
 
     if (error) {
       return alert('保存に失敗しました: ' + error.message);
+    }
+
+    // ▼ ステータスが left の場合は banned = true、それ以外（active等）は banned = false に連動
+    const isLeft = editingMember.status === 'left';
+    if (editingMember.game_id) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ banned: isLeft })
+        .eq('game_id', editingMember.game_id);
+
+      if (profileError) {
+        console.error('Profilesのbanned更新に失敗しました:', profileError.message);
+      }
     }
 
     setEditingMember(null);
@@ -656,7 +668,6 @@ export default function MembersPage() {
           if (header === 'leader' || header === 'is_in_2275' || header === 'discord_checked') {
             val = parseBoolean(val);
           }
-          // ▼ CSV取り込みの際も、総力(移民前)が空の場合はそのままnullにする
           if (header === 'power_before_migration' && (val === '' || val === null || val === '-')) {
             val = null;
           }
