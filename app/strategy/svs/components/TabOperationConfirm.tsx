@@ -590,6 +590,9 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                       <th key={t.team} className="p-2.5 font-medium border-l border-slate-800 text-center">
                         <div className="text-cyan-300 font-bold">チーム {t.team}</div>
                         <div className="text-[10px] text-slate-400 font-normal">({t.alliance || '-'})</div>
+                        {t.position && (
+                          <div className="text-[10px] text-amber-400 font-semibold mt-0.5">{t.position}</div>
+                        )}
                       </th>
                     ))}
                   </tr>
@@ -633,7 +636,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
             <div className="space-y-6">
               {FORMATION_KEYS.map((form) => {
                 const setting = formationSettings[form.key];
-                if (!setting || !setting.enabled) return null;
+                if (!setting || setting.enabled !== true) return null;
 
                 const isJoinerAssign = !!setting.joiner_assign;
                 const joinerHeroes = [
@@ -645,18 +648,30 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
 
                 if (joinerHeroes.length === 0) return null;
 
+                const activeTeams = teams.filter((t) => {
+                  const assignRow = heroAssignments.find(
+                    (a) => a.survey_id === surveyId && a.formation_key === form.key && a.team === t.team
+                  );
+                  if (!assignRow) return false;
+                  return Object.keys(assignRow).some((k) => k.includes('assign') && assignRow[k]);
+                });
+
+                if (isJoinerAssign && activeTeams.length === 0) return null;
+
                 const ratioShield = setting.ratio_shield ?? 0;
                 const ratioSpear = setting.ratio_spear ?? 0;
                 const ratioBow = setting.ratio_bow ?? 0;
-                const ratioText = ` (${ratioShield}：${ratioSpear}：${ratioBow})`;
 
                 return (
                   <div key={form.key} className="bg-[#0b0f19] border border-slate-800 rounded-lg p-4 space-y-3">
                     <div className="text-xs font-bold text-cyan-300 border-b border-slate-800 pb-1.5 flex justify-between items-center">
-                      <span>{form.label}{ratioText}</span>
-                      <span className="text-[10px] px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400">
-                        {isJoinerAssign ? '指定英雄設定あり' : '乗り手英雄表示'}
-                      </span>
+                      <span>{form.label}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-cyan-400 text-xs">比率: {ratioShield}:{ratioSpear}:{ratioBow}</span>
+                        <span className="text-[10px] px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400">
+                          {isJoinerAssign ? '指定英雄設定あり' : '乗り手英雄表示'}
+                        </span>
+                      </div>
                     </div>
 
                     {isJoinerAssign ? (
@@ -665,14 +680,14 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                           <thead>
                             <tr className="border-b border-slate-800 text-slate-400">
                               <th className="p-2 font-medium w-20">チーム</th>
-                              <th className="p-2 font-medium w-16 border-l border-slate-800">順</th>
+                              <th className="p-2 font-medium w-24 border-l border-slate-800">役割 (順)</th>
                               {joinerHeroes.map((hName, hIdx) => (
                                 <th key={hIdx} className="p-2 font-medium border-l border-slate-800 whitespace-nowrap">{hName}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
-                            {teams.map((t) => {
+                            {activeTeams.map((t) => {
                               const assignRow = heroAssignments.find(
                                 (a) => a.survey_id === surveyId && a.formation_key === form.key && a.team === t.team
                               );
@@ -694,7 +709,8 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                                   }
                                   return null;
                                 });
-                                return { seq, slots };
+                                const roleLabel = String(seq);
+                                return { seq, roleLabel, slots };
                               });
 
                               return rowsData.map((rd, rIdx) => (
@@ -704,7 +720,9 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                                       チーム {t.team}
                                     </td>
                                   )}
-                                  <td className="p-2 text-slate-400 font-mono border-l border-slate-800">{rd.seq}</td>
+                                  <td className="p-2 text-slate-300 font-medium border-l border-slate-800">
+                                    {rd.roleLabel}
+                                  </td>
                                   {rd.slots.map((name, hIdx) => (
                                     <td key={hIdx} className="p-2 border-l border-slate-800 align-top">
                                       {name ? (
@@ -994,6 +1012,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                   {teams.map((t) => (
                     <th key={t.team} className="border border-slate-400 p-2.5">
                       チーム {t.team} <span className="text-[10px] font-normal">({t.alliance || '-'})</span>
+                      {t.position && <div className="text-[10px] text-amber-200 mt-0.5">{t.position}</div>}
                     </th>
                   ))}
                 </tr>
@@ -1034,7 +1053,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
             <div className="space-y-4">
               {FORMATION_KEYS.map((form) => {
                 const setting = formationSettings[form.key];
-                if (!setting || !setting.enabled) return null;
+                if (!setting || setting.enabled !== true) return null;
 
                 const isJoinerAssign = !!setting.joiner_assign;
                 const joinerHeroes = [
@@ -1046,15 +1065,25 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
 
                 if (joinerHeroes.length === 0) return null;
 
+                const activeTeams = teams.filter((t) => {
+                  const assignRow = heroAssignments.find(
+                    (a) => a.survey_id === surveyId && a.formation_key === form.key && a.team === t.team
+                  );
+                  if (!assignRow) return false;
+                  return Object.keys(assignRow).some((k) => k.includes('assign') && assignRow[k]);
+                });
+
+                if (isJoinerAssign && activeTeams.length === 0) return null;
+
                 const ratioShield = setting.ratio_shield ?? 0;
                 const ratioSpear = setting.ratio_spear ?? 0;
                 const ratioBow = setting.ratio_bow ?? 0;
-                const ratioText = ` (${ratioShield}：${ratioSpear}：${ratioBow})`;
 
                 return (
                   <div key={form.key}>
-                    <div className="text-xs font-bold bg-slate-200 px-3 py-1.5 border border-slate-400 border-b-0 rounded-t-md text-[#2a437e]">
-                      {form.label}{ratioText}
+                    <div className="text-xs font-bold bg-slate-200 px-3 py-1.5 border border-slate-400 border-b-0 rounded-t-md text-[#2a437e] flex justify-between items-center">
+                      <span>{form.label}</span>
+                      <span className="font-mono text-slate-700">比率: {ratioShield}:{ratioSpear}:{ratioBow}</span>
                     </div>
 
                     {isJoinerAssign ? (
@@ -1062,14 +1091,14 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                         <thead>
                           <tr className="bg-[#2a437e] text-white">
                             <th className="border border-slate-400 p-2 w-20">チーム</th>
-                            <th className="border border-slate-400 p-2 w-12">順</th>
+                            <th className="border border-slate-400 p-2 w-20">役割 (順)</th>
                             {joinerHeroes.map((hName, idx) => (
                               <th key={idx} className="border border-slate-400 p-2 whitespace-nowrap">{hName}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {teams.map((t) => {
+                          {activeTeams.map((t) => {
                             const assignRow = heroAssignments.find(
                               (a) => a.survey_id === surveyId && a.formation_key === form.key && a.team === t.team
                             );
@@ -1098,6 +1127,8 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                                 ];
                               }
 
+                              const roleLabel = String(seq);
+
                               return (
                                 <tr key={`${t.team}-${seq}`}>
                                   {sIdx === 0 && (
@@ -1105,7 +1136,9 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                                       チーム {t.team}
                                     </td>
                                   )}
-                                  <td className="border border-slate-400 p-2 bg-slate-50 text-slate-500 font-mono">{seq}</td>
+                                  <td className="border border-slate-400 p-2 bg-slate-50 text-slate-700">
+                                    {roleLabel}
+                                  </td>
                                   {joinerHeroes.map((_, hIdx) => (
                                     <td key={hIdx} className="border border-slate-400 p-2 text-left whitespace-nowrap bg-white">
                                       {names[hIdx] || '-'}
