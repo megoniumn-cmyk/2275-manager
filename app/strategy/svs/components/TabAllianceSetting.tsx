@@ -844,8 +844,8 @@ export default function TabAllianceSetting({ selectedDate }: TabAllianceSettingP
                           />
                         </td>
                       ))}
-                      <td className="p-3 text-slate-300 text-[11px] truncate max-w-[120px]" title={resp?.time_memo || ''}>
-                        {resp?.time_memo || ''}
+                      <td className="p-3 text-slate-300 text-[11px] truncate max-w-[120px]" title={resp?.time_slot_memo || ''}>
+                        {resp?.time_slot_memo || ''}
                       </td>
                       <td className="p-3 text-center text-slate-300 text-[11px]">{vcLabel}</td>
                       <td className="p-3 text-slate-300 text-[11px] truncate max-w-[120px]" title={resp?.vc_memo || ''}>

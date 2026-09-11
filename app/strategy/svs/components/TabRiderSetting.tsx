@@ -900,7 +900,7 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
                             />
                           </td>
                         ))}
-                        <td className="p-3 text-slate-300 truncate max-w-[100px]">{resp.time_memo || ''}</td>
+                        <td className="p-3 text-slate-300 truncate max-w-[100px]">{resp.time_slot_memo || ''}</td>
                         <td className="p-3 text-slate-300">{vcLabel}</td>
                         <td className="p-3 text-slate-300 truncate max-w-[100px]">{resp.vc_memo || ''}</td>
                         <td className="p-3 text-center font-bold text-cyan-300">{discordLabel}</td>
