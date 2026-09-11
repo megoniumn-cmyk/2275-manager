@@ -157,9 +157,17 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
         .eq('survey_id', mId);
 
       if (teamData && teamData.length > 0) {
-        const loadedKeys: string[] = [];
         const loadedSettings: { [key: string]: { alliance: string; role: string } } = {};
-        teamData.forEach((item) => {
+        
+        // チーム名をアルファベット順（A, B, C...）にソート
+        const sortedTeamData = [...teamData].sort((a, b) => {
+          if (!a.team) return 1;
+          if (!b.team) return -1;
+          return a.team.localeCompare(b.team);
+        });
+
+        const loadedKeys: string[] = [];
+        sortedTeamData.forEach((item) => {
           if (item.team) {
             loadedKeys.push(item.team);
             loadedSettings[item.team] = {
@@ -373,12 +381,11 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
     }
   };
 
-  // ペットチェックボックス変更（1つだけチェックを入れる方式に変更）
+  // ペットチェックボックス変更
   const handlePetCheckChange = async (gameId: string, field: 'p21_23' | 'p23_25' | 'p24_26') => {
     const gIdStr = String(gameId);
     const current = riderPets[gIdStr] || { p21_23: false, p23_25: false, p24_26: false };
     
-    // すでにチェックされているものを再度クリックした場合はすべて解除、それ以外はクリックされたものだけを true にする
     const isAlreadyChecked = current[field];
     const updatedPets = {
       p21_23: isAlreadyChecked ? false : field === 'p21_23',
@@ -497,6 +504,7 @@ export default function TabRiderSetting({ selectedDate }: TabRiderSettingProps) 
   const mainAllianceName = strategyInfo.main;
   const gostAllianceName = strategyInfo.gost_1;
 
+  // チームの並び順を固定（有効なチームの中から同盟が一致するものをそのまま抽出）
   const mainAllianceTeams = useMemo(() => {
     return validTeams.filter((k) => teamSettings[k]?.alliance === mainAllianceName);
   }, [validTeams, teamSettings, mainAllianceName]);
