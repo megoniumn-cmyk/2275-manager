@@ -1107,17 +1107,16 @@ export default function TransferManagementPage() {
                         <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.server_name || '-'}</td>
                         <td style={{ padding: '12px', fontWeight: 'bold', color: '#ffffff' }}>{item.game_account_name || '-'}</td>
                         <td style={{ padding: '12px' }}>
-                          {/* エクスポート用バッジ：位置を少し上に微調整 */}
+                          {/* エクスポート用バッジ：枠サイズ維持のまま文字位置を上に微調整 (上1px, 下7px) */}
                           <span style={{
                             display: 'inline-block',
                             backgroundColor: badgeBg,
                             color: badgeColor,
                             border: `1px solid ${badgeBorder}`,
                             borderRadius: '6px',
-                            padding: '1px 8px 3px 8px',
+                            padding: '1px 8px 7px 8px',
                             fontSize: '10px',
                             fontWeight: 500,
-                            lineHeight: '1',
                             textAlign: 'center',
                             whiteSpace: 'nowrap',
                           }}>
