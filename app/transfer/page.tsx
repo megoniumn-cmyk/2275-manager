@@ -664,6 +664,7 @@ export default function TransferManagementPage() {
     }
 
     let successCount = 0;
+    const now = new Date().toISOString();
 
     for (const item of checkedItems) {
       if (!item.game_id) continue;
@@ -685,12 +686,32 @@ export default function TransferManagementPage() {
             if (!statesArray.includes(targetServerName)) {
               statesArray.push(targetServerName);
               updatedState = statesArray.join(',');
-
-              await supabase
-                .from('members')
-                .update({ state: updatedState })
-                .eq('id', existingMember.id);
             }
+          }
+
+          const updatePayload = {
+            name: item.game_account_name,
+            fc_level: item.fc || null,
+            shield_soldier: item.shield_soldier || null,
+            spear_soldier: item.spear_soldier || null,
+            bow_soldier: item.bow_soldier || null,
+            current_power: item.power_after || null,
+            power_before_migration: item.power_before || null,
+            transfer: item.transfer_period || null,
+            alliance: item.alliance_after || null,
+            note: item.remarks || null,
+            status: 'active',
+            state: targetServerName || updatedState || null,
+            updated_at: now,
+          };
+
+          const { error: updateErr } = await supabase
+            .from('members')
+            .update(updatePayload)
+            .eq('id', existingMember.id);
+
+          if (!updateErr) {
+            successCount++;
           }
         } else {
           const discordId = `no_discord${item.game_id}`;
@@ -709,11 +730,14 @@ export default function TransferManagementPage() {
             status: 'active',
             discord_id: discordId,
             state: targetServerName || null,
+            updated_at: now,
           };
 
-          await supabase.from('members').insert([memberPayload]);
+          const { error: insertErr } = await supabase.from('members').insert([memberPayload]);
+          if (!insertErr) {
+            successCount++;
+          }
         }
-        successCount++;
       }
     }
 
@@ -1107,7 +1131,6 @@ export default function TransferManagementPage() {
                         <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.server_name || '-'}</td>
                         <td style={{ padding: '12px', fontWeight: 'bold', color: '#ffffff' }}>{item.game_account_name || '-'}</td>
                         <td style={{ padding: '12px' }}>
-                          {/* エクスポート用バッジ：枠サイズ維持のまま文字位置を上に微調整 (上1px, 下7px) */}
                           <span style={{
                             display: 'inline-block',
                             backgroundColor: badgeBg,
