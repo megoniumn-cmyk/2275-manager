@@ -33,7 +33,15 @@ interface AllianceItem {
 const FC_OPTIONS = ['FC10', 'FC9', 'FC8', 'FC7', 'FC6以下'];
 const SOLDIER_OPTIONS = ['FC10T11', 'FC9T11', 'FC8T11', 'FC7T11', 'FC6T11', 'FC5T11', 'FC10T10', 'FC9T10', 'FC8T10', 'FC7T10', 'FC6T10以下'];
 const INVITATION_SLOT_OPTIONS = ['普通', '特枠'];
-const STATUS_OPTIONS = ['問い合わせ', '移民検討中', '移民確定', '招待状送付済み', '移民完了'];
+const STATUS_OPTIONS = [
+  '問い合わせ',
+  '移民検討中',
+  '移民確定',
+  '招待(余り分)',
+  '招待状送付済み',
+  '移民完了',
+  'キャンセル',
+];
 
 const getStatusBadgeStyle = (status: string) => {
   switch (status) {
@@ -43,10 +51,14 @@ const getStatusBadgeStyle = (status: string) => {
       return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
     case '移民確定':
       return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-   case '招待状送付済み':
+    case '招待(余り分)':
+      return 'bg-teal-500/10 text-teal-400 border-teal-500/30';
+    case '招待状送付済み':
       return 'bg-purple-500/10 text-purple-400 border-purple-500/30';
     case '移民完了':
       return 'bg-slate-700/30 text-slate-400 border-slate-600/30';
+    case 'キャンセル':
+      return 'bg-rose-500/10 text-rose-400 border-rose-500/30';
     default:
       return 'bg-slate-800 text-slate-400 border-slate-700';
   }
@@ -122,7 +134,6 @@ const AllianceListModal = memo(({
               value={newAllianceName}
               onChange={(e) => setNewAllianceName(e.target.value)}
               className="w-full bg-[#151c2c] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500"
-              placeholder=""
             />
           </div>
           <button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-bold transition h-[34px]">
@@ -176,19 +187,39 @@ const ExportModal = ({
   isOpen: boolean;
   onClose: () => void;
   transferOptions: { label: string }[];
-  onExport: (period: string, status: string) => void;
+  onExport: (period: string, statuses: string[]) => void;
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(STATUS_OPTIONS);
 
   if (!isOpen) return null;
+
+  const handleToggleStatus = (status: string) => {
+    if (selectedStatuses.includes(status)) {
+      setSelectedStatuses(selectedStatuses.filter(s => s !== status));
+    } else {
+      setSelectedStatuses([...selectedStatuses, status]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    setSelectedStatuses([...STATUS_OPTIONS]);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedStatuses([]);
+  };
 
   const handleExecute = () => {
     if (!selectedPeriod) {
       alert('移民時期を選択してください。');
       return;
     }
-    onExport(selectedPeriod, selectedStatus);
+    if (selectedStatuses.length === 0) {
+      alert('ステータスを少なくとも1つ選択してください。');
+      return;
+    }
+    onExport(selectedPeriod, selectedStatuses);
   };
 
   return (
@@ -215,17 +246,27 @@ const ExportModal = ({
           </div>
 
           <div>
-            <label className="block text-slate-400 mb-1.5">ステータスフィルタを選択</label>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-cyan-500"
-            >
-              <option value="ALL">すべて表示</option>
-              {STATUS_OPTIONS.map((opt, idx) => (
-                <option key={idx} value={opt}>{opt}</option>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-slate-400">出力するステータス（複数選択可）</label>
+              <div className="space-x-2">
+                <button type="button" onClick={handleSelectAll} className="text-cyan-400 hover:underline">全選択</button>
+                <span className="text-slate-600">/</span>
+                <button type="button" onClick={handleDeselectAll} className="text-slate-400 hover:underline">解除</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 bg-[#0b0f19] border border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto">
+              {STATUS_OPTIONS.map((status) => (
+                <label key={status} className="flex items-center gap-2 cursor-pointer text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={selectedStatuses.includes(status)}
+                    onChange={() => handleToggleStatus(status)}
+                    className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
+                  />
+                  <span>{status}</span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
         </div>
 
@@ -262,6 +303,14 @@ const MemberModal = ({
   allianceListOptions: string[];
   isEditMode: boolean;
 }) => {
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsConfirmingDelete(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -381,23 +430,38 @@ const MemberModal = ({
             <textarea rows={3} value={item.remarks || ''} onChange={(e) => setItem(prev => ({ ...prev, remarks: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500 resize-y" />
           </div>
 
-          <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-            <div>
-              {isEditMode && onDelete && (
+          <div className="pt-2">
+            {isConfirmingDelete && (
+              <div className="mb-3 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center justify-between text-rose-300">
+                <span>本当に削除してもいいですか？</span>
                 <button
                   type="button"
                   onClick={onDelete}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold transition text-xs shadow-lg shadow-rose-950"
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold transition text-xs shadow"
                 >
-                  削除する
+                  はい、削除する
                 </button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition">キャンセル</button>
-              <button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition shadow-lg shadow-cyan-900/40">
-                {isEditMode ? '更新する' : '登録する'}
-              </button>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <div>
+                {isEditMode && onDelete && !isConfirmingDelete && (
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmingDelete(true)}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold transition text-xs shadow-lg shadow-rose-950"
+                  >
+                    削除する
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition">キャンセル</button>
+                <button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition shadow-lg shadow-cyan-900/40">
+                  {isEditMode ? '更新する' : '登録する'}
+                </button>
+              </div>
             </div>
           </div>
         </form>
@@ -436,11 +500,12 @@ export default function TransferManagementPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAllianceModalOpen, setIsAllianceModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isBulkDeleteConfirming, setIsBulkDeleteConfirming] = useState(false);
   
   const [editingItem, setEditingItem] = useState<TransferItem>(initialFormState);
   const exportTableRef = useRef<HTMLDivElement>(null);
   const [exportTargetPeriod, setExportTargetPeriod] = useState<string | null>(null);
-  const [exportTargetStatus, setExportTargetStatus] = useState<string>('ALL');
+  const [exportTargetStatuses, setExportTargetStatuses] = useState<string[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -483,8 +548,6 @@ export default function TransferManagementPage() {
   };
 
   const handleDeleteItem = async (id: string) => {
-    if (!confirm('本当にこのデータを削除しますか？')) return;
-
     const { error } = await supabase
       .from('transfer_management')
       .delete()
@@ -504,7 +567,10 @@ export default function TransferManagementPage() {
     const checkedItems = items.filter(i => i.is_checked && i.id);
     if (checkedItems.length === 0) return;
 
-    if (!confirm(`選択された ${checkedItems.length} 件のデータを削除しますか？`)) return;
+    if (!isBulkDeleteConfirming) {
+      setIsBulkDeleteConfirming(true);
+      return;
+    }
 
     const ids = checkedItems.map(i => i.id!);
     const { error } = await supabase
@@ -518,6 +584,7 @@ export default function TransferManagementPage() {
     } else {
       setItems(items.filter(i => !i.is_checked));
     }
+    setIsBulkDeleteConfirming(false);
   };
 
   const handleSubmitModal = async (e: React.FormEvent) => {
@@ -653,9 +720,9 @@ export default function TransferManagementPage() {
     alert(`${successCount}件のメンバー情報をmembersテーブルに反映しました。`);
   };
 
-  const handleExecuteExport = async (period: string, status: string) => {
+  const handleExecuteExport = async (period: string, statuses: string[]) => {
     setExportTargetPeriod(period);
-    setExportTargetStatus(status);
+    setExportTargetStatuses(statuses);
     setIsExportModalOpen(false);
 
     setTimeout(async () => {
@@ -670,7 +737,7 @@ export default function TransferManagementPage() {
         const image = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = image;
-        link.download = `移民リスト_${period}${status !== 'ALL' ? `_${status}` : ''}.png`;
+        link.download = `移民リスト_${period}.png`;
         link.click();
       } catch (err) {
         console.error('Failed to export image:', err);
@@ -694,12 +761,46 @@ export default function TransferManagementPage() {
     return matchesKeyword && matchesPeriod && matchesStatus;
   });
 
+  const parsePowerToNumber = (val: string | number | null | undefined): number => {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return val;
+    const str = String(val).trim().toUpperCase();
+    let multiplier = 1;
+    if (str.endsWith('B')) {
+      multiplier = 1_000_000_000;
+    } else if (str.endsWith('M')) {
+      multiplier = 1_000_000;
+    } else if (str.endsWith('K')) {
+      multiplier = 1_000;
+    }
+    const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+    return isNaN(num) ? 0 : num * multiplier;
+  };
+
   const exportFilteredItems = exportTargetPeriod
-    ? items.filter(i => {
-        const matchesPeriod = i.transfer_period === exportTargetPeriod;
-        const matchesStatus = exportTargetStatus === 'ALL' || i.status === exportTargetStatus;
-        return matchesPeriod && matchesStatus;
-      })
+    ? items
+        .filter(i => {
+          const matchesPeriod = i.transfer_period === exportTargetPeriod;
+          const matchesStatus = exportTargetStatuses.includes(i.status);
+          return matchesPeriod && matchesStatus;
+        })
+        .sort((a, b) => {
+          const statusAIndex = STATUS_OPTIONS.indexOf(a.status);
+          const statusBIndex = STATUS_OPTIONS.indexOf(b.status);
+          const orderA = statusAIndex === -1 ? 999 : statusAIndex;
+          const orderB = statusBIndex === -1 ? 999 : statusBIndex;
+          if (orderA !== orderB) return orderA - orderB;
+
+          const fcAIndex = FC_OPTIONS.indexOf(a.fc);
+          const fcBIndex = FC_OPTIONS.indexOf(b.fc);
+          const fcOrderA = fcAIndex === -1 ? 999 : fcAIndex;
+          const fcOrderB = fcBIndex === -1 ? 999 : fcBIndex;
+          if (fcOrderA !== fcOrderB) return fcOrderA - fcOrderB;
+
+          const powerA = parsePowerToNumber(a.power_before);
+          const powerB = parsePowerToNumber(b.power_before);
+          return powerB - powerA;
+        })
     : [];
 
   const hasCheckedItems = items.some(i => i.is_checked);
@@ -717,12 +818,25 @@ export default function TransferManagementPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {hasCheckedItems && (
-            <button
-              onClick={handleDeleteCheckedItems}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-rose-950 flex items-center gap-1.5 shrink-0"
-            >
-              <span>🗑️</span> 選択した項目を削除
-            </button>
+            <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-xl">
+              {isBulkDeleteConfirming && (
+                <span className="text-xs text-rose-300 font-medium">本当に削除してもいいですか？</span>
+              )}
+              <button
+                onClick={handleDeleteCheckedItems}
+                className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition shadow-lg shadow-rose-950 flex items-center gap-1 shrink-0"
+              >
+                <span>🗑️</span> {isBulkDeleteConfirming ? 'はい、削除する' : '選択した項目を削除'}
+              </button>
+              {isBulkDeleteConfirming && (
+                <button
+                  onClick={() => setIsBulkDeleteConfirming(false)}
+                  className="text-xs text-slate-400 hover:text-white px-1"
+                >
+                  取消
+                </button>
+              )}
+            </div>
           )}
           <button
             onClick={handleRegisterToMembers}
@@ -859,7 +973,7 @@ export default function TransferManagementPage() {
                   </td>
 
                   <td className="p-3 w-[120px] shrink-0 border-b border-slate-800/60">
-                    <span className={`inline-block border rounded-md px-2 py-0.5 font-medium text-[11px] text-center w-full truncate ${getStatusBadgeStyle(item.status)}`}>
+                    <span className={`inline-block border rounded-md px-1.5 py-0.5 font-medium text-[10px] text-center w-full truncate ${getStatusBadgeStyle(item.status)}`}>
                       {item.status || '-'}
                     </span>
                   </td>
@@ -924,7 +1038,7 @@ export default function TransferManagementPage() {
             <div style={{ marginBottom: '16px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>📋 移民予定リスト</h2>
               <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                移民時期: {exportTargetPeriod} {exportTargetStatus !== 'ALL' ? `/ ステータス: ${exportTargetStatus}` : ''}
+                移民時期: {exportTargetPeriod}
               </p>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #1e293b', fontSize: '12px' }}>
@@ -954,24 +1068,76 @@ export default function TransferManagementPage() {
                     </td>
                   </tr>
                 ) : (
-                  exportFilteredItems.map((item, idx) => (
-                    <tr key={idx} style={{ backgroundColor: '#0b0f19', borderBottom: '1px solid #1e293b' }}>
-                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.server_name || '-'}</td>
-                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#ffffff' }}>{item.game_account_name || '-'}</td>
-                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.status || '-'}</td>
-                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.alliance_name || '-'}</td>
-                      <td style={{ padding: '12px', fontFamily: 'monospace', color: '#94a3b8' }}>{item.game_id || '-'}</td>
-                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.fc || '-'}</td>
-                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.shield_soldier || '-'}</td>
-                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.spear_soldier || '-'}</td>
-                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.bow_soldier || '-'}</td>
-                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.power_after || '-'}</td>
-                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.power_before || '-'}</td>
-                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.invitation_slot || '-'}</td>
-                      <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.alliance_after || '-'}</td>
-                      <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.remarks || '-'}</td>
-                    </tr>
-                  ))
+                  exportFilteredItems.map((item, idx) => {
+                    let badgeBg = '#1e293b';
+                    let badgeColor = '#94a3b8';
+                    let badgeBorder = '#334155';
+                    if (item.status === '問い合わせ') {
+                      badgeBg = 'rgba(245, 158, 11, 0.1)';
+                      badgeColor = '#fbbf24';
+                      badgeBorder = 'rgba(245, 158, 11, 0.3)';
+                    } else if (item.status === '移民検討中') {
+                      badgeBg = 'rgba(59, 130, 246, 0.1)';
+                      badgeColor = '#60a5fa';
+                      badgeBorder = 'rgba(59, 130, 246, 0.3)';
+                    } else if (item.status === '移民確定') {
+                      badgeBg = 'rgba(16, 185, 129, 0.1)';
+                      badgeColor = '#34d399';
+                      badgeBorder = 'rgba(16, 185, 129, 0.3)';
+                    } else if (item.status === '招待(余り分)') {
+                      badgeBg = 'rgba(20, 184, 166, 0.1)';
+                      badgeColor = '#2dd4bf';
+                      badgeBorder = 'rgba(20, 184, 166, 0.3)';
+                    } else if (item.status === '招待状送付済み') {
+                      badgeBg = 'rgba(168, 85, 247, 0.1)';
+                      badgeColor = '#c084fc';
+                      badgeBorder = 'rgba(168, 85, 247, 0.3)';
+                    } else if (item.status === '移民完了') {
+                      badgeBg = 'rgba(51, 65, 85, 0.3)';
+                      badgeColor = '#94a3b8';
+                      badgeBorder = 'rgba(71, 85, 105, 0.3)';
+                    } else if (item.status === 'キャンセル') {
+                      badgeBg = 'rgba(244, 63, 94, 0.1)';
+                      badgeColor = '#fb7185';
+                      badgeBorder = 'rgba(244, 63, 94, 0.3)';
+                    }
+
+                    return (
+                      <tr key={idx} style={{ backgroundColor: '#0b0f19', borderBottom: '1px solid #1e293b' }}>
+                        <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.server_name || '-'}</td>
+                        <td style={{ padding: '12px', fontWeight: 'bold', color: '#ffffff' }}>{item.game_account_name || '-'}</td>
+                        <td style={{ padding: '12px' }}>
+                          {/* エクスポート用バッジ：位置を少し上に微調整 */}
+                          <span style={{
+                            display: 'inline-block',
+                            backgroundColor: badgeBg,
+                            color: badgeColor,
+                            border: `1px solid ${badgeBorder}`,
+                            borderRadius: '6px',
+                            padding: '1px 8px 3px 8px',
+                            fontSize: '10px',
+                            fontWeight: 500,
+                            lineHeight: '1',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {item.status || '-'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.alliance_name || '-'}</td>
+                        <td style={{ padding: '12px', fontFamily: 'monospace', color: '#94a3b8' }}>{item.game_id || '-'}</td>
+                        <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.fc || '-'}</td>
+                        <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.shield_soldier || '-'}</td>
+                        <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.spear_soldier || '-'}</td>
+                        <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.bow_soldier || '-'}</td>
+                        <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.power_after || '-'}</td>
+                        <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.power_before || '-'}</td>
+                        <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.invitation_slot || '-'}</td>
+                        <td style={{ padding: '12px', color: '#e2e8f0' }}>{item.alliance_after || '-'}</td>
+                        <td style={{ padding: '12px', color: '#cbd5e1' }}>{item.remarks || '-'}</td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
