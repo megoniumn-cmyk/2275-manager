@@ -361,7 +361,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         wsData.push([eventInfoText]);
         wsData.push([]);
         wsData.push(['■ 乗り手チーム編成（ペット時間帯別）']);
-        const teamHeaders = ['時間帯', ...teams.map(t => `チーム ${t.team} (${t.alliance || '-'})`)];
+        const teamHeaders = ['時間帯', ...teams.map(t => `チーム ${t.team} (${t.alliance || '-'})${t.position ? ` / ${t.position}` : ''}`)];
         wsData.push(teamHeaders);
         RIDER_TIME_SLOTS.forEach((timeSlot) => {
           const pFieldKey = timeSlot === '21-23' ? 'p_2123' : timeSlot === '23-25' ? 'p_2325' : 'p_2426';
@@ -377,7 +377,7 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
         const activeCols = activeTeamColumns.filter(tKey => tKey !== '');
         const partHeaders = ['時間帯', ...activeCols.map(tKey => {
           const tObj = teams.find(t => String(t.team) === String(tKey));
-          return `チーム ${tKey}${tObj?.alliance ? `(${tObj.alliance})` : ''}`;
+          return `チーム ${tKey}${tObj?.alliance ? `(${tObj.alliance})` : ''}${tObj?.position ? ` / ${tObj.position}` : ''}`;
         })];
         wsData.push(partHeaders);
         UNIFIED_PARTICIPATION_TIME_SLOTS.forEach((timeSlot) => {
@@ -1236,7 +1236,8 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                   <th className="border border-slate-400 p-2.5 w-24">時間帯</th>
                   {teams.map((t) => (
                     <th key={t.team} className="border border-slate-400 p-2.5">
-                      チーム {t.team} <span className="text-[10px] font-normal">({t.alliance || '-'})</span>
+                      <div>チーム {t.team} <span className="text-[10px] font-normal">({t.alliance || '-'})</span></div>
+                      {t.position && <div className="text-[10px] text-amber-200 font-semibold mt-0.5">{t.position}</div>}
                     </th>
                   ))}
                 </tr>
@@ -1276,7 +1277,8 @@ export default function TabOperationConfirm({ selectedDate }: TabOperationConfir
                     const tObj = teams.find(t => String(t.team) === String(tKey));
                     return (
                       <th key={`${tKey}-${colIndex}`} className="border border-slate-400 p-2.5">
-                        チーム {tKey}{tObj?.alliance ? `(${tObj.alliance})` : ''}
+                        <div>チーム {tKey}{tObj?.alliance ? `(${tObj.alliance})` : ''}</div>
+                        {tObj?.position && <div className="text-[10px] text-amber-200 font-semibold mt-0.5">{tObj.position}</div>}
                       </th>
                     );
                   })}

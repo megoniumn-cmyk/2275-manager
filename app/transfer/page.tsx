@@ -115,7 +115,6 @@ const AllianceListModal = memo(({
             <label className="block text-slate-400 mb-1">同盟名</label>
             <input
               type="text"
-              required
               value={newAllianceName}
               onChange={(e) => setNewAllianceName(e.target.value)}
               className="w-full bg-[#151c2c] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500"
@@ -173,9 +172,10 @@ const ExportModal = ({
   isOpen: boolean;
   onClose: () => void;
   transferOptions: { label: string }[];
-  onExport: (period: string) => void;
+  onExport: (period: string, status: string) => void;
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
 
   if (!isOpen) return null;
 
@@ -184,7 +184,7 @@ const ExportModal = ({
       alert('移民時期を選択してください。');
       return;
     }
-    onExport(selectedPeriod);
+    onExport(selectedPeriod, selectedStatus);
   };
 
   return (
@@ -209,6 +209,20 @@ const ExportModal = ({
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="block text-slate-400 mb-1.5">ステータスフィルタを選択</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-white outline-none focus:border-cyan-500"
+            >
+              <option value="ALL">すべて表示</option>
+              {STATUS_OPTIONS.map((opt, idx) => (
+                <option key={idx} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
@@ -227,6 +241,7 @@ const MemberModal = ({
   isOpen,
   onClose,
   onSubmit,
+  onDelete,
   item,
   setItem,
   transferOptions,
@@ -236,6 +251,7 @@ const MemberModal = ({
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
+  onDelete?: () => void;
   item: TransferItem;
   setItem: React.Dispatch<React.SetStateAction<TransferItem>>;
   transferOptions: { label: string }[];
@@ -257,37 +273,37 @@ const MemberModal = ({
         <form onSubmit={onSubmit} className="space-y-3 text-xs">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-400 mb-1">サーバー名 <span className="text-rose-500">*</span></label>
-              <input type="text" required value={item.server_name || ''} onChange={(e) => setItem(prev => ({ ...prev, server_name: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
+              <label className="block text-slate-400 mb-1">サーバー名</label>
+              <input type="text" value={item.server_name || ''} onChange={(e) => setItem(prev => ({ ...prev, server_name: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">同盟名 <span className="text-rose-500">*</span></label>
-              <input type="text" required value={item.alliance_name || ''} onChange={(e) => setItem(prev => ({ ...prev, alliance_name: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-400 mb-1">ゲームアカウント名 <span className="text-rose-500">*</span></label>
-              <input type="text" required value={item.game_account_name || ''} onChange={(e) => setItem(prev => ({ ...prev, game_account_name: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">ゲームID <span className="text-rose-500">*</span></label>
-              <input type="text" required value={item.game_id || ''} onChange={(e) => setItem(prev => ({ ...prev, game_id: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
+              <label className="block text-slate-400 mb-1">同盟名</label>
+              <input type="text" value={item.alliance_name || ''} onChange={(e) => setItem(prev => ({ ...prev, alliance_name: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-400 mb-1">FC <span className="text-rose-500">*</span></label>
-              <select required value={item.fc || ''} onChange={(e) => setItem(prev => ({ ...prev, fc: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
+              <label className="block text-slate-400 mb-1">ゲームアカウント名</label>
+              <input type="text" value={item.game_account_name || ''} onChange={(e) => setItem(prev => ({ ...prev, game_account_name: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
+            </div>
+            <div>
+              <label className="block text-slate-400 mb-1">ゲームID</label>
+              <input type="text" value={item.game_id || ''} onChange={(e) => setItem(prev => ({ ...prev, game_id: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-400 mb-1">FC</label>
+              <select value={item.fc || ''} onChange={(e) => setItem(prev => ({ ...prev, fc: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
                 <option value="">- (未選択)</option>
                 {FC_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">ステータス <span className="text-rose-500">*</span></label>
-              <select required value={item.status || ''} onChange={(e) => setItem(prev => ({ ...prev, status: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
+              <label className="block text-slate-400 mb-1">ステータス</label>
+              <select value={item.status || ''} onChange={(e) => setItem(prev => ({ ...prev, status: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500">
                 <option value="">- (未選択)</option>
                 {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               </select>
@@ -320,8 +336,8 @@ const MemberModal = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-400 mb-1">総力(削減前) <span className="text-rose-500">*</span></label>
-              <input type="text" required value={item.power_before || ''} onChange={(e) => setItem(prev => ({ ...prev, power_before: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
+              <label className="block text-slate-400 mb-1">総力(削減前)</label>
+              <input type="text" value={item.power_before || ''} onChange={(e) => setItem(prev => ({ ...prev, power_before: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500" />
             </div>
             <div>
               <label className="block text-slate-400 mb-1">総力(削減後)</label>
@@ -361,11 +377,24 @@ const MemberModal = ({
             <textarea rows={3} value={item.remarks || ''} onChange={(e) => setItem(prev => ({ ...prev, remarks: e.target.value }))} className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-cyan-500 resize-y" />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition">キャンセル</button>
-            <button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition shadow-lg shadow-cyan-900/40">
-              {isEditMode ? '更新する' : '登録する'}
-            </button>
+          <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+            <div>
+              {isEditMode && onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold transition text-xs shadow-lg shadow-rose-950"
+                >
+                  削除する
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition">キャンセル</button>
+              <button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition shadow-lg shadow-cyan-900/40">
+                {isEditMode ? '更新する' : '登録する'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -399,6 +428,7 @@ export default function TransferManagementPage() {
   const [allianceListOptions, setAllianceListOptions] = useState<string[]>([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedPeriodFilter, setSelectedPeriodFilter] = useState('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAllianceModalOpen, setIsAllianceModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -406,6 +436,7 @@ export default function TransferManagementPage() {
   const [editingItem, setEditingItem] = useState<TransferItem>(initialFormState);
   const exportTableRef = useRef<HTMLDivElement>(null);
   const [exportTargetPeriod, setExportTargetPeriod] = useState<string | null>(null);
+  const [exportTargetStatus, setExportTargetStatus] = useState<string>('ALL');
 
   useEffect(() => {
     fetchData();
@@ -447,8 +478,56 @@ export default function TransferManagementPage() {
     }
   };
 
+  const handleDeleteItem = async (id: string) => {
+    if (!confirm('本当にこのデータを削除しますか？')) return;
+
+    const { error } = await supabase
+      .from('transfer_management')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Delete failed:', error);
+      alert('削除に失敗しました。');
+    } else {
+      setItems(items.filter(i => i.id !== id));
+      setIsModalOpen(false);
+      setEditingItem(initialFormState);
+    }
+  };
+
+  const handleDeleteCheckedItems = async () => {
+    const checkedItems = items.filter(i => i.is_checked && i.id);
+    if (checkedItems.length === 0) return;
+
+    if (!confirm(`選択された ${checkedItems.length} 件のデータを削除しますか？`)) return;
+
+    const ids = checkedItems.map(i => i.id!);
+    const { error } = await supabase
+      .from('transfer_management')
+      .delete()
+      .in('id', ids);
+
+    if (error) {
+      console.error('Bulk delete failed:', error);
+      alert('一括削除に失敗しました。');
+    } else {
+      setItems(items.filter(i => !i.is_checked));
+    }
+  };
+
   const handleSubmitModal = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const hasValues = Object.entries(editingItem).some(([key, val]) => {
+      if (key === 'id' || key === 'is_checked') return false;
+      return val !== '' && val !== null && val !== undefined;
+    });
+
+    if (!hasValues) {
+      alert('少なくとも1つの項目を入力してください。');
+      return;
+    }
 
     const payload = {
       ...editingItem,
@@ -570,8 +649,9 @@ export default function TransferManagementPage() {
     alert(`${successCount}件のメンバー情報をmembersテーブルに反映しました。`);
   };
 
-  const handleExecuteExport = async (period: string) => {
+  const handleExecuteExport = async (period: string, status: string) => {
     setExportTargetPeriod(period);
+    setExportTargetStatus(status);
     setIsExportModalOpen(false);
 
     setTimeout(async () => {
@@ -586,7 +666,7 @@ export default function TransferManagementPage() {
         const image = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = image;
-        link.download = `移民リスト_${period}.png`;
+        link.download = `移民リスト_${period}${status !== 'ALL' ? `_${status}` : ''}.png`;
         link.click();
       } catch (err) {
         console.error('Failed to export image:', err);
@@ -605,13 +685,20 @@ export default function TransferManagementPage() {
     
     const matchesKeyword = name.includes(keyword) || gameId.includes(keyword) || alliance.includes(keyword);
     const matchesPeriod = selectedPeriodFilter === 'ALL' || item.transfer_period === selectedPeriodFilter;
+    const matchesStatus = selectedStatusFilter === 'ALL' || item.status === selectedStatusFilter;
 
-    return matchesKeyword && matchesPeriod;
+    return matchesKeyword && matchesPeriod && matchesStatus;
   });
 
   const exportFilteredItems = exportTargetPeriod
-    ? items.filter(i => i.transfer_period === exportTargetPeriod)
+    ? items.filter(i => {
+        const matchesPeriod = i.transfer_period === exportTargetPeriod;
+        const matchesStatus = exportTargetStatus === 'ALL' || i.status === exportTargetStatus;
+        return matchesPeriod && matchesStatus;
+      })
     : [];
+
+  const hasCheckedItems = items.some(i => i.is_checked);
 
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-6 flex flex-col">
@@ -625,6 +712,14 @@ export default function TransferManagementPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {hasCheckedItems && (
+            <button
+              onClick={handleDeleteCheckedItems}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-rose-950 flex items-center gap-1.5 shrink-0"
+            >
+              <span>🗑️</span> 選択した項目を削除
+            </button>
+          )}
           <button
             onClick={handleRegisterToMembers}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-900/40 flex items-center gap-1.5 shrink-0"
@@ -663,18 +758,34 @@ export default function TransferManagementPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-400">移民時期フィルター:</span>
-          <select
-            value={selectedPeriodFilter}
-            onChange={(e) => setSelectedPeriodFilter(e.target.value)}
-            className="bg-[#151c2c] border border-slate-700 text-slate-200 rounded-xl px-3 py-2 outline-none focus:border-cyan-500"
-          >
-            <option value="ALL">すべて表示</option>
-            {transferOptions.map((opt, idx) => (
-              <option key={idx} value={opt.label}>{opt.label}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-4 flex-wrap text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">ステータス:</span>
+            <select
+              value={selectedStatusFilter}
+              onChange={(e) => setSelectedStatusFilter(e.target.value)}
+              className="bg-[#151c2c] border border-slate-700 text-slate-200 rounded-xl px-3 py-2 outline-none focus:border-cyan-500"
+            >
+              <option value="ALL">すべて表示</option>
+              {STATUS_OPTIONS.map((opt, idx) => (
+                <option key={idx} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">移民時期フィルター:</span>
+            <select
+              value={selectedPeriodFilter}
+              onChange={(e) => setSelectedPeriodFilter(e.target.value)}
+              className="bg-[#151c2c] border border-slate-700 text-slate-200 rounded-xl px-3 py-2 outline-none focus:border-cyan-500"
+            >
+              <option value="ALL">すべて表示</option>
+              {transferOptions.map((opt, idx) => (
+                <option key={idx} value={opt.label}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -808,7 +919,9 @@ export default function TransferManagementPage() {
           <div ref={exportTableRef} style={{ backgroundColor: '#0b0f19', color: '#f8fafc', padding: '24px', width: '1600px' }}>
             <div style={{ marginBottom: '16px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#ffffff', margin: 0 }}>📋 移民予定リスト</h2>
-              <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>移民時期: {exportTargetPeriod}</p>
+              <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                移民時期: {exportTargetPeriod} {exportTargetStatus !== 'ALL' ? `/ ステータス: ${exportTargetStatus}` : ''}
+              </p>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #1e293b', fontSize: '12px' }}>
               <thead>
@@ -866,6 +979,7 @@ export default function TransferManagementPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleSubmitModal}
+        onDelete={editingItem.id ? () => handleDeleteItem(editingItem.id!) : undefined}
         item={editingItem}
         setItem={setEditingItem}
         transferOptions={transferOptions}
