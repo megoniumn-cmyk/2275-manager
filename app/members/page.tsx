@@ -458,7 +458,6 @@ export default function MembersPage() {
       return alert('保存に失敗しました: ' + error.message);
     }
 
-    // ▼ ステータスが left の場合は banned = true、それ以外（active等）は banned = false に連動
     const isLeft = editingMember.status === 'left';
     if (editingMember.game_id) {
       const { error: profileError } = await supabase
@@ -1414,7 +1413,17 @@ export default function MembersPage() {
                     />
                   </div>
 
-                  <div className="hidden lg:block"></div>
+                  {/* === ご要望の追加箇所: 総力(移民前) と 元鯖 の間 === */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Discord ID</label>
+                    <input
+                      type="text"
+                      value={editingMember.discord_id || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, discord_id: e.target.value })}
+                      placeholder="例: 916300992612540467"
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    />
+                  </div>
 
                   <div className="md:col-span-2 lg:col-span-3">
                     <label className="block text-xs font-semibold text-slate-300 mb-1">元鯖 (カンマ区切り)</label>
