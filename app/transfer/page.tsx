@@ -33,7 +33,7 @@ interface AllianceItem {
 
 const FC_OPTIONS = ['FC10', 'FC9', 'FC8', 'FC7', 'FC6以下'];
 const SOLDIER_OPTIONS = ['FC10T11', 'FC9T11', 'FC8T11', 'FC7T11', 'FC6T11', 'FC5T11', 'FC10T10', 'FC9T10', 'FC8T10', 'FC7T10', 'FC6T10以下'];
-const INVITATION_SLOT_OPTIONS = ['普通', '特枠'];
+const INVITATION_SLOT_OPTIONS = ['普通', '特枠', '自由'];
 const STATUS_OPTIONS = [
   '問い合わせ',
   '移民検討中',
