@@ -257,13 +257,13 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
+              <table className="w-full min-w-[550px] text-left text-xs text-slate-300">
                 <thead className="bg-[#0b0f19] text-slate-400">
                   <tr>
-                    <th className="p-2 w-28">1列目: JST</th>
-                    <th className="p-2 w-36">2列目: チーム</th>
+                    <th className="p-2 w-24">1列目: JST</th>
+                    <th className="p-2 w-32">2列目: チーム</th>
                     <th className="p-2">3行目: 指示内容 (改行可)</th>
-                    <th className="p-2 w-16">操作</th>
+                    <th className="p-2 w-16 text-center">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 align-top">
@@ -272,7 +272,7 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
                       <td className="p-2">
                         <input
                           type="text"
-                          className="bg-[#0b0f19] border border-slate-700 rounded p-1 text-white w-full outline-none"
+                          className="bg-[#0b0f19] border border-slate-700 rounded p-1.5 text-white w-full outline-none"
                           value={r.jst || ''}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -283,7 +283,7 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
                       <td className="p-2">
                         <input
                           type="text"
-                          className="bg-[#0b0f19] border border-slate-700 rounded p-1 text-white w-full outline-none"
+                          className="bg-[#0b0f19] border border-slate-700 rounded p-1.5 text-white w-full outline-none"
                           value={r.team || ''}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -293,7 +293,7 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
                       </td>
                       <td className="p-2">
                         <textarea
-                          className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white w-full outline-none h-16 resize-y"
+                          className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white w-full min-w-[200px] outline-none h-20 resize-y"
                           value={r.note || ''}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -301,7 +301,7 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
                           }}
                         />
                       </td>
-                      <td className="p-2">
+                      <td className="p-2 text-center">
                         <button
                           onClick={() => setPhase2Rows((prev) => prev.filter((_, i) => i !== idx))}
                           className="text-rose-400 hover:text-rose-300 font-bold px-2 py-1"
@@ -554,7 +554,7 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
                     </div>
                   </div>
 
-                  {/* 参加者 (joiner 1~4) - 駐屯側にも追加 */}
+                  {/* 参加者 (joiner 1~4) */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[1, 2, 3, 4].map((num) => (
                       <div key={num}>
