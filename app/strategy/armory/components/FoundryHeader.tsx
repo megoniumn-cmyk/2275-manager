@@ -2,6 +2,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { GoogleGenAI } from '@google/genai';
+
+// クライアント側で直接初期化（NEXT_PUBLIC_GEMINI_API_KEY を参照）
+const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
 
 const getComingSunday = () => {
   const d = new Date();
@@ -92,19 +96,34 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
         const file = files[i];
         const imageBase64 = await fileToBase64(file);
 
-        // 自作のサーバー側API（/api/analyze-screenshot）を呼び出し
-        const res = await fetch('/api/analyze-screenshot', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64 }),
-        });
+        const matches = imageBase64.match(/^data:(.+);base64,(.+)$/);
+        let mimeType = 'image/jpeg';
+        let base64Data = imageBase64;
 
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'AI解析に失敗しました');
+        if (matches && matches.length === 3) {
+          mimeType = matches[1];
+          base64Data = matches[2];
+        } else {
+          base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
         }
 
-        const textResponse = data.text ? data.text.trim() : '';
+        const prompt = 'Extract all players name (string), power (integer), and bench (boolean) from this screenshot. Return strictly as a JSON array format like [{"name":"abc","power":123,"bench":false}] with no markdown.';
+
+        // ブラウザから直接 gemini-3.8-flash を呼び出し
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: [
+            prompt,
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType,
+              },
+            },
+          ],
+        });
+
+        const textResponse = response.text ? response.text.trim() : '';
         const cleanJsonText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
         
         const parsedMembers = JSON.parse(cleanJsonText);
