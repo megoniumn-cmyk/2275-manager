@@ -181,7 +181,7 @@ export default function StrategyViewer({ supabase, selectedDate }) {
       const noteLines = note.split('\n');
       noteLines.forEach((l) => {
         if (jst) block += `${jst}\n`;
-        block += `⚫︎${team}：${l}\n`;
+        block += `●${team}：${l}\n`;
       });
       return block.trim();
     }).join('\n\n');
