@@ -12,6 +12,10 @@ export default function StrategyViewer({ supabase, selectedDate }) {
   const [formations, setFormations] = useState([]);
   const [heroesMap, setHeroesMap] = useState({});
 
+  // ③ 配置コピー用のチェック状態管理（一時保存）
+  const [phase1Checked, setPhase1Checked] = useState({});
+  const [phase2Checked, setPhase2Checked] = useState({});
+
   useEffect(() => {
     if (selectedDate) {
       fetchData();
@@ -139,7 +143,6 @@ export default function StrategyViewer({ supabase, selectedDate }) {
     copyToClipboard(content, '【移転】の方針をコピーしました！');
   };
 
-  // ④ フェーズ2詳細タイムライン作戦のテキストコピー修正版
   const handleCopyPhase2Timeline = () => {
     let formattedBlocks = phase2Notes.map((r) => {
       const jst = r.jst || '';
@@ -158,7 +161,6 @@ export default function StrategyViewer({ supabase, selectedDate }) {
     copyToClipboard(formattedBlocks, 'フェーズ2詳細タイムライン作戦をコピーしました！');
   };
 
-  // 英訳コピーボタン（編成用）
   const handleCopyEnglishFormations = () => {
     let output = '';
     formations.forEach((item) => {
@@ -189,7 +191,6 @@ export default function StrategyViewer({ supabase, selectedDate }) {
     copyToClipboard(output.trim(), '英訳した部隊編成をコピーしました！');
   };
 
-  // ⑤ 部隊編成 (集結・駐屯) のテキストコピー
   const handleCopyFormationsText = () => {
     let output = '';
     formations.forEach((item) => {
@@ -214,14 +215,15 @@ export default function StrategyViewer({ supabase, selectedDate }) {
     copyToClipboard(output.trim(), '部隊編成テキストをコピーしました！');
   };
 
-  // フェーズ1配置一覧のテキストコピー
+  // ③ フェーズ1配置一覧（チェックされた施設のみコピー）
   const handleCopyPhase1Config = () => {
     let output = '';
     phase1Buildings.forEach((bName) => {
+      if (!phase1Checked[bName]) return; // チェックがない場合はスキップ
+
       const targetMembers = memberList.filter(
         (m) => Number(m.phase) === 1 && m.building === bName
       );
-      if (targetMembers.length === 0) return;
 
       const sorted = targetMembers.sort((a, b) => {
         const idxA = phase1RoleOrder.indexOf(a.role);
@@ -238,17 +240,23 @@ export default function StrategyViewer({ supabase, selectedDate }) {
       output += '\n';
     });
 
-    copyToClipboard(output.trim(), 'フェーズ1配置一覧をコピーしました！');
+    if (!output.trim()) {
+      alert('コピーする施設がチェックされていません。');
+      return;
+    }
+
+    copyToClipboard(output.trim(), '選択されたフェーズ1配置一覧をコピーしました！');
   };
 
-  // フェーズ2配置一覧のテキストコピー
+  // ③ フェーズ2配置一覧（チェックされた施設のみコピー）
   const handleCopyPhase2Config = () => {
     let output = '';
     phase2Buildings.forEach((bName) => {
+      if (!phase2Checked[bName]) return; // チェックがない場合はスキップ
+
       const targetMembers = memberList.filter(
         (m) => Number(m.phase) === 2 && m.building === bName
       );
-      if (targetMembers.length === 0) return;
 
       const sorted = targetMembers.sort((a, b) => {
         const idxA = phase2RoleOrder.indexOf(a.role);
@@ -265,10 +273,14 @@ export default function StrategyViewer({ supabase, selectedDate }) {
       output += '\n';
     });
 
-    copyToClipboard(output.trim(), 'フェーズ2配置一覧をコピーしました！');
+    if (!output.trim()) {
+      alert('コピーする施設がチェックされていません。');
+      return;
+    }
+
+    copyToClipboard(output.trim(), '選択されたフェーズ2配置一覧をコピーしました！');
   };
 
-  // ⑥ 武器工房のテキストコピー
   const handleCopyWorkshopText = () => {
     const getNames = (bName) => {
       const target = memberList.filter((m) => Number(m.phase) === 2 && m.building === bName);
@@ -284,7 +296,7 @@ export default function StrategyViewer({ supabase, selectedDate }) {
     copyToClipboard(content, '武器工房のテキストをコピーしました！');
   };
 
-  // ② マルチタブExcel出力 (.xls形式でタブ分割)
+  // マルチタブExcel出力 (.xls形式でタブ分割)
   const exportMultiTabExcel = () => {
     const escXML = (str) => {
       if (!str) return '';
@@ -342,19 +354,25 @@ export default function StrategyViewer({ supabase, selectedDate }) {
     });
     xml += `</Table>\n</Worksheet>\n`;
 
-    // 3. 作戦タブ (①改行コードを保持)
+    // 3. 作戦タブ (①改行コードを保ったままExcelセル内に反映)
     xml += `<Worksheet ss:Name="作戦">\n<Table>\n`;
     xml += `<Row><Cell><Data ss:Type="String">pattern</Data></Cell><Cell><Data ss:Type="String">jst</Data></Cell><Cell><Data ss:Type="String">team</Data></Cell><Cell><Data ss:Type="String">note</Data></Cell></Row>\n`;
+    
+    // 基本
     xml += `<Row><Cell><Data ss:Type="String">基本</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="String">${escXML(basicNote)}</Data></Cell></Row>\n`;
+    // teleport
     xml += `<Row><Cell><Data ss:Type="String">teleport</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="String">${escXML(teleportNote)}</Data></Cell></Row>\n`;
+    
+    // phase2
     phase2Notes.forEach((r) => {
       xml += `<Row><Cell><Data ss:Type="String">${escXML(r.pattern || 'phase2')}</Data></Cell><Cell><Data ss:Type="String">${escXML(r.jst)}</Data></Cell><Cell><Data ss:Type="String">${escXML(r.team)}</Data></Cell><Cell><Data ss:Type="String">${escXML(r.note)}</Data></Cell></Row>\n`;
     });
     xml += `</Table>\n</Worksheet>\n`;
 
-    // 4. 編成タブ
+    // 4. 編成タブ (②日本語名＋改行＋英語名)
     xml += `<Worksheet ss:Name="編成">\n<Table>\n`;
     xml += `<Row><Cell><Data ss:Type="String">集結/駐屯</Data></Cell><Cell><Data ss:Type="String">盾</Data></Cell><Cell><Data ss:Type="String">槍</Data></Cell><Cell><Data ss:Type="String">弓</Data></Cell><Cell><Data ss:Type="String">比率</Data></Cell><Cell><Data ss:Type="String">指定英雄1</Data></Cell><Cell><Data ss:Type="String">指定英雄2</Data></Cell><Cell><Data ss:Type="String">指定英雄3</Data></Cell><Cell><Data ss:Type="String">指定英雄4</Data></Cell></Row>\n`;
+    
     formations.forEach((item) => {
       const typeStr = item.type === 'rally' ? '集結' : '駐屯';
       const formatName = (jpName) => {
@@ -406,9 +424,31 @@ export default function StrategyViewer({ supabase, selectedDate }) {
       return 0;
     });
 
+    const isChecked = phaseNum === 1 ? !!phase1Checked[buildingName] : !!phase2Checked[buildingName];
+
+    const handleCheckChange = (e) => {
+      const checked = e.target.checked;
+      if (phaseNum === 1) {
+        setPhase1Checked(prev => ({ ...prev, [buildingName]: checked }));
+      } else {
+        setPhase2Checked(prev => ({ ...prev, [buildingName]: checked }));
+      }
+    };
+
     return (
-      <div key={buildingName} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-3 space-y-2">
-        <h4 className="text-xs font-bold text-cyan-400 border-b border-slate-800 pb-1">🔥 {buildingName}</h4>
+      <div key={buildingName} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-3 space-y-2 relative">
+        {/* ③ チェックボックス */}
+        <div className="flex justify-between items-center border-b border-slate-800 pb-1">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={isChecked} 
+              onChange={handleCheckChange}
+              className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-cyan-500"
+            />
+            <span className="text-xs font-bold text-cyan-400">🔥 {buildingName}</span>
+          </label>
+        </div>
         <div className="space-y-1">
           {sorted.map((m, idx) => (
             <div key={m.id || idx} className="flex justify-between items-center text-xs text-slate-300">
@@ -429,10 +469,26 @@ export default function StrategyViewer({ supabase, selectedDate }) {
     );
 
     const sorted = targetMembers.sort((a, b) => (b.power || 0) - (a.power || 0));
+    const isChecked = !!phase2Checked[buildingName];
+
+    const handleCheckChange = (e) => {
+      const checked = e.target.checked;
+      setPhase2Checked(prev => ({ ...prev, [buildingName]: checked }));
+    };
 
     return (
-      <div key={buildingName} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-3 space-y-2">
-        <h4 className="text-xs font-bold text-amber-400 border-b border-slate-800 pb-1">🏭 {buildingName}</h4>
+      <div key={buildingName} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-3 space-y-2 relative">
+        <div className="flex justify-between items-center border-b border-slate-800 pb-1">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={isChecked} 
+              onChange={handleCheckChange}
+              className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500"
+            />
+            <span className="text-xs font-bold text-amber-400">🏭 {buildingName}</span>
+          </label>
+        </div>
         {sorted.length > 0 ? (
           <div className="space-y-1">
             {sorted.map((m, idx) => (
@@ -564,7 +620,7 @@ export default function StrategyViewer({ supabase, selectedDate }) {
         <div className="flex justify-between items-center">
           <h2 className="text-base font-bold text-white flex items-center gap-2">🛡️ フェーズ1 配置一覧</h2>
           <button onClick={handleCopyPhase1Config} className="text-[10px] bg-cyan-900/60 hover:bg-cyan-800 text-cyan-200 px-2.5 py-1.5 rounded transition font-medium">
-            📋 テキストコピー
+            📋 チェックした施設をコピー
           </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -577,7 +633,7 @@ export default function StrategyViewer({ supabase, selectedDate }) {
         <div className="flex justify-between items-center">
           <h2 className="text-base font-bold text-white flex items-center gap-2">⚙️ フェーズ2 配置・武器工房一覧</h2>
           <button onClick={handleCopyPhase2Config} className="text-[10px] bg-cyan-900/60 hover:bg-cyan-800 text-cyan-200 px-2.5 py-1.5 rounded transition font-medium">
-            📋 配置テキストコピー
+            📋 チェックした施設をコピー
           </button>
         </div>
         
