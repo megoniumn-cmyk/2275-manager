@@ -107,11 +107,17 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
         return;
       }
 
-      // 戦力が高い順にソート。戦力が同じ場合は元の行が上のものを優先 (originalIndexが小さい方)
+      // ★「参戦」を先、「控え」を後にし、それぞれのグループ内で「戦力が高い順」にソート
       parsedMembers.sort((a, b) => {
+        // 1. 参戦(!bench: false) と 控え(bench: true) の比較（参戦を前にする）
+        if (a.bench !== b.bench) {
+          return a.bench ? 1 : -1;
+        }
+        // 2. 戦力が高い順
         if (b.power !== a.power) {
           return b.power - a.power;
         }
+        // 3. 戦力が同じ場合は元の行が上のものを優先
         return a.originalIndex - b.originalIndex;
       });
 
@@ -151,7 +157,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
         });
       });
 
-      // 2. 新規データの一括登録（必要に応じて onConflict を指定してアップサート化）
+      // 2. 新規データの一括登録
       const { error: insertError } = await supabase
         .from('foundry_memberlist')
         .insert(recordsToInsert);
