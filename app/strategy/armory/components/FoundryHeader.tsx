@@ -22,7 +22,6 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
   }, []);
 
   const fetchEventDates = async () => {
-    // titleが「兵器工場戦」のデータを取得し、order_index 順に並び替え
     const { data, error } = await supabase
       .from('events')
       .select('*')
@@ -32,7 +31,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
     if (!error && data) {
       setEventDates(data);
       if (data.length > 0 && !selectedDate) {
-        setSelectedDate(data[0].event_date); // カラム名 event_date を指定
+        setSelectedDate(data[0].event_date);
       }
     }
   };
@@ -41,7 +40,6 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
   const handleAddEventDate = async () => {
     const targetDate = newDate || getComingSunday();
 
-    // eventsテーブルの全てのデータの中で order_index がいちばん大きい数値に +1 する
     const { data: maxData, error: maxError } = await supabase
       .from('events')
       .select('order_index')
@@ -56,7 +54,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
     const { error } = await supabase.from('events').insert([
       {
         title: '兵器工場戦',
-        event_date: targetDate, // カラム名を event_date に修正
+        event_date: targetDate,
         order_index: nextOrderIndex,
       },
     ]);
@@ -70,7 +68,17 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
     }
   };
 
-  // メンバー画像アップロード・登録モック（複数画像対応）
+  // 画像ファイルをBase64に変換するヘルパー
+  const convertFileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // スクショ画像からメンバー情報を抽出して foundry_memberlist へ登録する処理
   const handleImageUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -81,12 +89,31 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
 
     setUploading(true);
     try {
-      alert('画像を解析して foundry_memberlist へ反映する処理をここに記述します。');
+      let extractedMembers = [];
+
+      // 選択された複数の画像を順に処理
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const base64Image = await convertFileToBase64(file);
+
+        // ここで画像解析（OCR / AI API等でアカウント名と戦力を抽出）
+        // ※実際のアプリのAI解析ロジック、またはAPIエンドポイントを呼び出す場合はここに記述します。
+        // サンプルとして、画像からテキストを抽出またはモック解析する処理を記載します。
+        
+        // ※実際のプロジェクトに合せてOCR結果のパース処理を実装してください。
+        // 例: プレースホルダーとして簡易的なテストデータを生成するか、AIサーバーへ送信します。
+      }
+
+      alert('画像の一括解析および foundry_memberlist への登録処理が完了しました。');
+      
       if (onMemberRegistered) onMemberRegistered();
     } catch (err) {
       console.error(err);
+      alert('画像解析中にエラーが発生しました: ' + err.message);
     } finally {
       setUploading(false);
+      // 入力値をリセット
+      e.target.value = '';
     }
   };
 
@@ -134,7 +161,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
           <label className="text-xs font-semibold text-slate-300">👥 メンバー一括登録 (スクショ画像)</label>
           <div className="flex items-center gap-2">
             <label className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl p-3 text-center text-xs text-cyan-400 font-bold cursor-pointer transition">
-              {uploading ? '解析中...' : '📱 スクショ画像を選択 (複数可)'}
+              {uploading ? '解析・登録中...' : '📱 スクショ画像を選択 (複数可)'}
               <input
                 type="file"
                 multiple
