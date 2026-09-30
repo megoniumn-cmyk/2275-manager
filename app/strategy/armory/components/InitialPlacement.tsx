@@ -57,10 +57,10 @@ export default function InitialPlacement({ supabase, selectedDate, refreshKey })
     <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-4">
       <h2 className="text-lg font-bold text-white">🪖 初期配置 (フェーズ1)</h2>
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-slate-300">
+        <table className="w-full text-left text-xs text-slate-300 min-w-[500px]">
           <thead className="bg-[#0b0f19] text-slate-400 uppercase">
             <tr>
-              <th className="p-3">名前</th>
+              <th className="p-3 w-36 sm:w-auto">名前</th>
               <th className="p-3">戦力</th>
               <th className="p-3 text-center">控え</th>
               <th className="p-3">施設</th>
@@ -73,7 +73,7 @@ export default function InitialPlacement({ supabase, selectedDate, refreshKey })
                 <td className="p-3">
                   <input
                     type="text"
-                    className="bg-[#0b0f19] border border-slate-700 rounded px-2 py-1.5 text-white font-bold w-full outline-none focus:border-cyan-500"
+                    className="bg-[#0b0f19] border border-slate-700 rounded px-2 py-1.5 text-white font-bold w-32 sm:w-full outline-none focus:border-cyan-500"
                     value={m.name || ''}
                     onChange={(e) => {
                       const val = e.target.value;

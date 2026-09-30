@@ -109,10 +109,10 @@ export default function Phase2Placement({ supabase, selectedDate, refreshKey }) 
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-slate-300">
+        <table className="w-full text-left text-xs text-slate-300 min-w-[500px]">
           <thead className="bg-[#0b0f19] text-slate-400 uppercase">
             <tr>
-              <th className="p-3">アカウント名</th>
+              <th className="p-3 w-36 sm:w-auto">アカウント名</th>
               <th className="p-3">部隊戦力</th>
               <th className="p-3 text-center">控え</th>
               <th className="p-3">施設</th>
@@ -125,7 +125,7 @@ export default function Phase2Placement({ supabase, selectedDate, refreshKey }) 
                 <td className="p-3">
                   <input
                     type="text"
-                    className="bg-[#0b0f19] border border-slate-700 rounded px-2 py-1.5 text-white font-bold w-full outline-none focus:border-cyan-500"
+                    className="bg-[#0b0f19] border border-slate-700 rounded px-2 py-1.5 text-white font-bold w-32 sm:w-full outline-none focus:border-cyan-500"
                     value={m.name || ''}
                     onChange={(e) => {
                       const val = e.target.value;
