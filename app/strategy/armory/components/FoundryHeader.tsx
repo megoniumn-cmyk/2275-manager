@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
 
-// クライアント側で直接初期化（NEXT_PUBLIC_GEMINI_API_KEY を参照）
 const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
 
 const getComingSunday = () => {
@@ -14,6 +13,26 @@ const getComingSunday = () => {
   d.setDate(d.getDate() + diff);
   return d.toISOString().split('T')[0];
 };
+
+// 503や混雑エラー時に自動でリトライする関数
+async function generateWithRetry(model: string, contents: any, retries = 3, delay = 3000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await ai.models.generateContent({ model, contents });
+    } catch (error: any) {
+      const errorMsg = error?.message || JSON.stringify(error);
+      const isOverloaded = errorMsg.includes('503') || errorMsg.includes('429') || errorMsg.includes('UNAVAILABLE');
+
+      if (isOverloaded && i < retries - 1) {
+        console.warn(`Attempt ${i + 1} overloaded (503). Retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 2; // 待ち時間を倍増 (3秒 -> 6秒 -> 12秒)
+      } else {
+        throw error;
+      }
+    }
+  }
+}
 
 export default function FoundryHeader({ supabase, selectedDate, setSelectedDate, onMemberRegistered }) {
   const [eventDates, setEventDates] = useState([]);
@@ -109,19 +128,16 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
 
         const prompt = 'Extract all players name (string), power (integer), and bench (boolean) from this screenshot. Return strictly as a JSON array format like [{"name":"abc","power":123,"bench":false}] with no markdown.';
 
-        // ブラウザから直接 gemini-3.8-flash を呼び出し
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [
-            prompt,
-            {
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType,
-              },
+        // リトライ機能付きで gemini-3.8-flash を呼び出し
+        const response = await generateWithRetry('gemini-3.8-flash', [
+          prompt,
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: mimeType,
             },
-          ],
-        });
+          },
+        ]);
 
         const textResponse = response.text ? response.text.trim() : '';
         const cleanJsonText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -179,7 +195,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
 
     } catch (err) {
       console.error(err);
-      alert('エラーが発生しました: ' + err.message);
+      alert('エラーが発生しました（混雑が続いています。少し時間を置いて再度お試しください）: ' + err.message);
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -229,7 +245,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
           <label className="text-xs font-semibold text-slate-300">👥 メンバー一括登録 (スクショ画像)</label>
           <div className="flex items-center gap-2">
             <label className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl p-3 text-center text-xs text-cyan-400 font-bold cursor-pointer transition">
-              {uploading ? '🤖 AI解析・登録中...' : '📱 スクショ画像を選択 (複数可)'}
+              {uploading ? '🤖 AI解析・登録中(自動リトライ中)...' : '📱 スクショ画像を選択 (複数可)'}
               <input
                 type="file"
                 multiple
