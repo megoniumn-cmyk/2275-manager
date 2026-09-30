@@ -108,9 +108,9 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
 
         const prompt = 'Extract all players name (string), power (integer), and bench (boolean) from this screenshot. Return strictly as a JSON array format like [{"name":"abc","power":123,"bench":false}] with no markdown.';
 
-        // 安定している gemini-1.5-flash を直接指定
+        // 最新の標準高速モデル gemini-2.0-flash を指定
         const response = await ai.models.generateContent({
-          model: 'gemini-1.5-flash',
+          model: 'gemini-2.0-flash',
           contents: [
             prompt,
             {
