@@ -11,7 +11,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '画像データがありません' }, { status: 400 });
     }
 
-    // data:image/png;base64, のようなプレフィックスを分離
     const matches = imageBase64.match(/^data:(.+);base64,(.+)$/);
     let mimeType = 'image/jpeg';
     let base64Data = imageBase64;
@@ -26,7 +25,7 @@ export async function POST(request: Request) {
     const prompt = 'Extract all players name (string), power (integer), and bench (boolean) from this screenshot. Return strictly as a JSON array format like [{"name":"abc","power":123,"bench":false}] with no markdown.';
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash', // 指定された最新モデルに変更
       contents: [
         prompt,
         {
