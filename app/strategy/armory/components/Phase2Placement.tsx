@@ -23,17 +23,16 @@ const BUILDINGS_PHASE2 = [
   '武器工房(右下)',
 ];
 
-const ROLES_PHASE2 = ['未選択', 'Leader', '武器工房', '1', '2', '3', '4', '5', '6', '7', '8'];
+const ROLES_PHASE2 = ['未選択', 'Leader', '武器工房', '1', '2', '3', '4', '5', '6', '7', '8', '控え'];
 
-export default function Phase2Placement({ supabase, selectedDate }) {
+export default function Phase2Placement({ supabase, selectedDate, refreshKey }) {
   const [phase2Members, setPhase2Members] = useState([]);
 
   useEffect(() => {
     if (selectedDate) fetchPhase2Members();
-  }, [selectedDate]);
+  }, [selectedDate, refreshKey]);
 
   const fetchPhase2Members = async () => {
-    // phase = 2 のデータを取得 (order_indexの数字が小さい順)
     const { data, error } = await supabase
       .from('foundry_memberlist')
       .select('*')
@@ -46,11 +45,9 @@ export default function Phase2Placement({ supabase, selectedDate }) {
     }
   };
 
-  // フェーズ1の配置を読み込んでフェーズ2として一括登録するボタン
   const handleImportPhase1 = async () => {
     if (!confirm('フェーズ1の配置データを読み込んでフェーズ2用データを生成しますか？')) return;
 
-    // phase 1 のデータを取得
     const { data: phase1Data, error: err1 } = await supabase
       .from('foundry_memberlist')
       .select('*')
@@ -62,14 +59,12 @@ export default function Phase2Placement({ supabase, selectedDate }) {
       return;
     }
 
-    // 既存のフェーズ2データを削除（上書き用）
     await supabase
       .from('foundry_memberlist')
       .delete()
       .eq('eventdate', selectedDate)
       .eq('phase', 2);
 
-    // phaseを 2 に書き換えて新規挿入（他の項目のデータはそのまま引き継ぐ）
     const newPhase2Rows = phase1Data.map((item) => {
       const { id, ...rest } = item;
       return {

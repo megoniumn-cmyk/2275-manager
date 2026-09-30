@@ -4,37 +4,36 @@
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// 分割したコンポーネントのインポート（パスは実際のプロジェクト構造に合わせて調整してください）
 import FoundryHeader from './components/FoundryHeader';
 import InitialPlacement from './components/InitialPlacement';
 import Phase2Placement from './components/Phase2Placement';
 import StrategyAndFormation from './components/StrategyAndFormation';
 import StrategyConfirmation from './components/StrategyConfirmation';
 
-// Supabaseクライアントの初期化（環境変数を使用）
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function FoundryArmoryPage() {
-  // ヘッダーで選択されているイベント日付を全体で共有
   const [selectedDate, setSelectedDate] = useState('');
-  
-  // スマホなどでの表示切り替え用タブ (placement1, placement2, strategy, confirmation)
+  const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState('placement1');
+
+  const handleMemberRegistered = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
 
   return (
     <main className="min-h-screen bg-[#0b0f19] text-slate-100 p-3 sm:p-6 pb-24">
       <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* 1. ヘッダーセクション（常に上部に表示） */}
         <FoundryHeader
           supabase={supabase}
           selectedDate={selectedDate}
           setSelectedDate={setSelectedDate}
+          onMemberRegistered={handleMemberRegistered}
         />
 
-        {/* 日付が未選択の場合のガイド */}
         {!selectedDate ? (
           <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-8 text-center text-slate-400 space-y-2">
             <p className="text-sm font-bold text-cyan-400">⚠️ まず最初にヘッダーから日付を選択するか、イベント日を追加してください。</p>
@@ -42,7 +41,6 @@ export default function FoundryArmoryPage() {
           </div>
         ) : (
           <>
-            {/* スマホ・PC共通のタブ切り替えメニュー */}
             <div className="flex bg-[#151c2c] border border-slate-800 p-1.5 rounded-2xl overflow-x-auto gap-1">
               <button
                 onClick={() => setActiveTab('placement1')}
@@ -78,22 +76,21 @@ export default function FoundryArmoryPage() {
               </button>
             </div>
 
-            {/* タブに応じたコンポーネントの表示 */}
             <div className="space-y-6">
               {activeTab === 'placement1' && (
-                <InitialPlacement supabase={supabase} selectedDate={selectedDate} />
+                <InitialPlacement supabase={supabase} selectedDate={selectedDate} refreshKey={refreshKey} />
               )}
 
               {activeTab === 'placement2' && (
-                <Phase2Placement supabase={supabase} selectedDate={selectedDate} />
+                <Phase2Placement supabase={supabase} selectedDate={selectedDate} refreshKey={refreshKey} />
               )}
 
               {activeTab === 'strategy' && (
-                <StrategyAndFormation supabase={supabase} selectedDate={selectedDate} />
+                <StrategyAndFormation supabase={supabase} selectedDate={selectedDate} refreshKey={refreshKey} />
               )}
 
               {activeTab === 'confirmation' && (
-                <StrategyConfirmation supabase={supabase} selectedDate={selectedDate} />
+                <StrategyConfirmation supabase={supabase} selectedDate={selectedDate} refreshKey={refreshKey} />
               )}
             </div>
           </>

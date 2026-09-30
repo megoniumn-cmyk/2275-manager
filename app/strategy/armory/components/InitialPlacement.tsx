@@ -16,17 +16,16 @@ const BUILDINGS_PHASE1 = [
   'フリー',
 ];
 
-const ROLES = ['未選択', 'Leader', '1', '2', '3', '4', '5', '6', '7', '8'];
+const ROLES = ['未選択', 'Leader', '1', '2', '3', '4', '5', '6', '7', '8', '控え'];
 
-export default function InitialPlacement({ supabase, selectedDate }) {
+export default function InitialPlacement({ supabase, selectedDate, refreshKey }) {
   const [members, setMembers] = useState([]);
 
   useEffect(() => {
     if (selectedDate) fetchMembers();
-  }, [selectedDate]);
+  }, [selectedDate, refreshKey]);
 
   const fetchMembers = async () => {
-    // phase = 1 のデータのみを取得し、order_index順に並べる
     const { data, error } = await supabase
       .from('foundry_memberlist')
       .select('*')
@@ -40,12 +39,10 @@ export default function InitialPlacement({ supabase, selectedDate }) {
   };
 
   const handleUpdateMember = async (id, field, value) => {
-    // ローカル状態を即時更新
     setMembers((prev) =>
       prev.map((m) => (m.id === id ? { ...m, [field]: value } : m))
     );
 
-    // Supabaseに上書き保存
     await supabase
       .from('foundry_memberlist')
       .update({ [field]: value })
@@ -73,7 +70,6 @@ export default function InitialPlacement({ supabase, selectedDate }) {
           <tbody className="divide-y divide-slate-800">
             {members.map((m) => (
               <tr key={m.id} className="hover:bg-slate-800/40">
-                {/* 名前 (テキストボックスで編集可能) */}
                 <td className="p-3">
                   <input
                     type="text"
@@ -89,7 +85,6 @@ export default function InitialPlacement({ supabase, selectedDate }) {
                   />
                 </td>
 
-                {/* 戦力 (テキストボックスで編集可能) */}
                 <td className="p-3">
                   <input
                     type="number"
@@ -108,7 +103,6 @@ export default function InitialPlacement({ supabase, selectedDate }) {
                   />
                 </td>
 
-                {/* 控えチェックボックス (色分け・判定可能) */}
                 <td className="p-3 text-center">
                   <label className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer transition ${
                     m.bench ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
@@ -123,7 +117,6 @@ export default function InitialPlacement({ supabase, selectedDate }) {
                   </label>
                 </td>
 
-                {/* 施設プルダウン (デフォルト: 未選択) */}
                 <td className="p-3">
                   <select
                     className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none focus:border-cyan-500"
@@ -136,7 +129,6 @@ export default function InitialPlacement({ supabase, selectedDate }) {
                   </select>
                 </td>
 
-                {/* 役割プルダウン */}
                 <td className="p-3">
                   <select
                     className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none focus:border-cyan-500"

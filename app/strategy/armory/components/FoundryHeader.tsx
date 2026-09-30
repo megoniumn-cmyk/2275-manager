@@ -17,6 +17,24 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
   const [loading, setLoading] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [showModal, setShowModal] = useState(false);
+  
+  // コマンド用モーダル・コピー状態のステート
+  const [showCommandModal, setShowCommandModal] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const commandText = `添付の画像に含まれるメンバー情報を整理してください。
+
+【出力条件】
+- フォーマット：アカウント名/戦力/参戦(控え)
+- 戦力：コンマなしの数値のみ
+- 並び順：戦力（名前の下の数字）が高い順（降順）
+- 表示形式：一括でコピーしやすいよう、テキストボックス（コードブロック）にまとめる`;
+
+  const handleCopyCommand = () => {
+    navigator.clipboard.writeText(commandText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     fetchEventDates();
@@ -107,7 +125,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
         return;
       }
 
-      // ★「参戦」を先、「控え」を後にし、それぞれのグループ内で「戦力が高い順」にソート
+      // ★「参戦」を先、「控え`を後にし、それぞれのグループ内で「戦力が高い順」にソート
       parsedMembers.sort((a, b) => {
         // 1. 参戦(!bench: false) と 控え(bench: true) の比較（参戦を前にする）
         if (a.bench !== b.bench) {
@@ -181,9 +199,20 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
 
   return (
     <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-4">
-      <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-        🏭 兵器工場戦 管理ハブ
-      </h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+          🏭 兵器工場戦 管理ハブ
+        </h1>
+
+        {/* メンバーリスト作成用コマンドボタン（右上に配置） */}
+        <button
+          type="button"
+          onClick={() => setShowCommandModal(true)}
+          className="bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm"
+        >
+          <span>🤖</span> メンバーリスト作成用コマンド
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
         {/* 日付選択セクション */}
@@ -277,6 +306,42 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
                 className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-5 py-2 rounded-xl transition disabled:opacity-50"
               >
                 {loading ? '登録中...' : '登録を実行する'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* メンバーリスト作成用コマンドモーダル */}
+      {showCommandModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-white font-bold text-sm flex items-center gap-2">
+                <span>📋</span> メンバーリスト作成用コマンド
+              </h3>
+              <button
+                onClick={() => setShowCommandModal(false)}
+                className="text-slate-400 hover:text-white font-bold text-sm px-2 py-1 rounded"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              作成方法：AIに参戦メンバーのスクショと下記のコマンドを送信してください。
+            </p>
+
+            <div className="bg-[#0b0f19] border border-slate-800 p-3 rounded-xl text-xs text-slate-300 font-mono whitespace-pre-wrap select-all leading-relaxed max-h-48 overflow-y-auto">
+              {commandText}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={handleCopyCommand}
+                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-lg w-full sm:w-auto"
+              >
+                {copied ? '✨ コピーしました！' : '📋 コマンドをコピーする'}
               </button>
             </div>
           </div>
