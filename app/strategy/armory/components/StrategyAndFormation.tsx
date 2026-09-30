@@ -72,7 +72,7 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
     }
   };
 
-  // ノート保存共通（基本・移転）- row: 1 を持たせる設計に対応
+  // ノート保存共通（基本・移転）
   const saveNote = async (pattern, noteText) => {
     const { error } = await supabase.from('foundry_note').upsert(
       { eventdate: selectedDate, pattern, row: 1, note: noteText },
@@ -552,6 +552,25 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
                         onChange={(e) => handleUpdateFormation(item.id, 'bow_ratio', e.target.value)}
                       />
                     </div>
+                  </div>
+
+                  {/* 参加者 (joiner 1~4) - 駐屯側にも追加 */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[1, 2, 3, 4].map((num) => (
+                      <div key={num}>
+                        <label className="text-[10px] text-slate-400">参加者 {num}</label>
+                        <select
+                          className="w-full bg-[#151c2c] border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                          value={item[`joiner${num}`] || ''}
+                          onChange={(e) => handleUpdateFormation(item.id, `joiner${num}`, e.target.value)}
+                        >
+                          <option value="">未選択</option>
+                          {joinerHeroes.map((jh) => (
+                            <option key={jh.id} value={jh.name}>{jh.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
