@@ -68,7 +68,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
     }
   };
 
-  // テキストを手動パースしてDBに一括登録する処理
+  // テキストを手動パースしてDBに一括登録・上書きする処理
   const handleTextImport = async () => {
     if (!selectedDate) {
       alert('先にヘッダーでイベント日を選択してください。');
@@ -115,8 +115,15 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
         return a.originalIndex - b.originalIndex;
       });
 
-      // 既存データの削除
-      await supabase.from('foundry_memberlist').delete().eq('eventdate', selectedDate);
+      // 1. まず該当する eventdate の既存データを確実に削除して二重登録を防ぐ
+      const { error: deleteError } = await supabase
+        .from('foundry_memberlist')
+        .delete()
+        .eq('eventdate', selectedDate);
+
+      if (deleteError) {
+        throw new Error('既存データの削除に失敗しました: ' + deleteError.message);
+      }
 
       let recordsToInsert = [];
       parsedMembers.forEach((m, idx) => {
@@ -144,12 +151,15 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
         });
       });
 
-      const { error: insertError } = await supabase.from('foundry_memberlist').insert(recordsToInsert);
+      // 2. 新規データの一括登録（必要に応じて onConflict を指定してアップサート化）
+      const { error: insertError } = await supabase
+        .from('foundry_memberlist')
+        .insert(recordsToInsert);
 
       if (insertError) {
         alert('登録エラー: ' + insertError.message);
       } else {
-        alert(`成功！ ${parsedMembers.length}名のメンバーを登録・並び替えしました。`);
+        alert(`成功！ ${parsedMembers.length}名のメンバーを登録・上書きしました。`);
         setTextInput('');
         setShowModal(false);
         if (onMemberRegistered) onMemberRegistered();
@@ -236,7 +246,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
             </div>
 
             <p className="text-xs text-slate-300">
-              以下の形式（<code>アカウント名/戦力/参戦(控え)</code>）で改行区切りで貼り付けてください。戦力順に自動ソートされ、同じ戦力の場合は上の行が優先されます。
+              以下の形式（<code>アカウント名/戦力/参戦(控え)</code>）で改行区切りで貼り付けてください。再登録時は既存データが上書きされます。
             </p>
 
             <textarea
