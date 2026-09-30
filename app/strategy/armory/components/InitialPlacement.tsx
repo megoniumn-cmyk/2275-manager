@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 
 const BUILDINGS_PHASE1 = [
+  '未選択',
   'スチームボイラー',
   '第1武器試験所',
   '第2武器試験所',
@@ -122,11 +123,11 @@ export default function InitialPlacement({ supabase, selectedDate }) {
                   </label>
                 </td>
 
-                {/* 施設プルダウン */}
+                {/* 施設プルダウン (デフォルト: 未選択) */}
                 <td className="p-3">
                   <select
                     className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none focus:border-cyan-500"
-                    value={m.building || 'フリー'}
+                    value={m.building || '未選択'}
                     onChange={(e) => handleUpdateMember(m.id, 'building', e.target.value)}
                   >
                     {BUILDINGS_PHASE1.map((b) => (
