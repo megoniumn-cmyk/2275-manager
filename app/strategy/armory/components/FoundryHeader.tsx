@@ -67,7 +67,6 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
     }
   };
 
-  // ファイルをGeminiが扱えるInlineData形式に変換するヘルパー
   const fileToGenerativePart = async (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -85,7 +84,6 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
     });
   };
 
-  // スクショ画像からメンバー情報を自動抽出してSupabaseに登録
   const handleImageUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -97,38 +95,148 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
 
     setUploading(true);
     try {
-      // 1. APIキーの確認 (Next.jsのクライアントサイドで使えるように NEXT_PUBLIC_ を想定。必要に応じて変更してください)
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) {
-        alert('Gemini APIキー（NEXT_PUBLIC_GEMINI_API_KEY）が設定されていません。');
+        alert('APIキーが設定されていません。');
         setUploading(false);
         e.target.value = '';
         return;
       }
 
       const ai = new GoogleGenAI({ apiKey });
-
       let allExtractedMembers = [];
 
-      // 2. 選択されたすべての画像を順にGeminiで解析
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const imagePart = await fileToGenerativePart(file);
 
-        const prompt = `
-          この画像はスマホゲーム「ホワイトアウトサバイバル」の兵器工場戦または同盟メンバーリストのスクリーンショットです。
-          画像に含まれるすべてのプレイヤーの「名前(name)」と「戦力(power: 数値のみ)」、および「控え」の状態（「控え」や「しょうが」などの表記があれば true、参戦なら false）を読み取ってください。
-          以下のJSONフォーマットの配列形式のみで結果を返してください。マークダウンのバッククォート(```json ... ```)は付けず、純粋なJSON文字列のみを出力してください。
-          [
-            {"name": "プレイヤー名", "power": 123456, "bench": false}
-          ]
-        `;
+        const prompt = 'Extract all players name (string), power (integer), and bench (boolean) from this screenshot. Return strictly as a JSON array format like [{"name":"abc","power":123,"bench":false}] with no markdown.';
 
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: [prompt, imagePart],
         });
 
-        const textResponse = response.text.trim();
-        // 余分なマークダウン記号がついている場合のクレンジング
-        const cleanJsonText = textResponse.replace(/^```json\s*/, '').replace(/^
+        const textResponse = response.text ? response.text.trim() : '';
+        const cleanJsonText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        const parsedMembers = JSON.parse(cleanJsonText);
+        if (Array.isArray(parsedMembers)) {
+          allExtractedMembers = [...allExtractedMembers, ...parsedMembers];
+        }
+      }
+
+      if (allExtractedMembers.length === 0) {
+        alert('メンバー情報を検出できませんでした。');
+        setUploading(false);
+        e.target.value = '';
+        return;
+      }
+
+      allExtractedMembers.sort((a, b) => (b.power || 0) - (a.power || 0));
+
+      await supabase.from('foundry_memberlist').delete().eq('eventdate', selectedDate);
+
+      let recordsToInsert = [];
+      allExtractedMembers.forEach((m, idx) => {
+        const rank = idx + 1;
+        recordsToInsert.push({
+          eventdate: selectedDate,
+          name: m.name,
+          power: m.power,
+          bench: m.bench || false,
+          order_index: rank,
+          phase: 1,
+          building: '',
+          role: '',
+        });
+        recordsToInsert.push({
+          eventdate: selectedDate,
+          name: m.name,
+          power: m.power,
+          bench: m.bench || false,
+          order_index: rank,
+          phase: 2,
+          building: '',
+          role: '',
+        });
+      });
+
+      const { error: insertError } = await supabase.from('foundry_memberlist').insert(recordsToInsert);
+
+      if (insertError) {
+        alert('登録エラー: ' + insertError.message);
+      } else {
+        alert('メンバーの解析と登録が完了しました！');
+        if (onMemberRegistered) onMemberRegistered();
+      }
+
+    } catch (err) {
+      console.error(err);
+      alert('エラーが発生しました: ' + err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-4">
+      <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+        🏭 兵器工場戦 管理ハブ
+      </h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-slate-300">📅 日付選択 (フェーズ・作戦共通)</label>
+          <select
+            className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-sm text-white focus:border-cyan-500 outline-none"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          >
+            <option value="">日付を選択してください</option>
+            {eventDates.map((ev) => (
+              <option key={ev.id} value={ev.event_date}>
+                {ev.event_date}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex gap-2 pt-2">
+            <input
+              type="date"
+              className="bg-[#0b0f19] border border-slate-700 rounded-xl p-2 text-sm text-white outline-none flex-1"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+            />
+            <button
+              onClick={handleAddEventDate}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition whitespace-nowrap"
+            >
+              イベント日追加
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-slate-300">👥 メンバー一括登録 (スクショ画像)</label>
+          <div className="flex items-center gap-2">
+            <label className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl p-3 text-center text-xs text-cyan-400 font-bold cursor-pointer transition">
+              {uploading ? '🤖 AI解析・登録中...' : '📱 スクショ画像を選択 (複数可)'}
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+            </label>
+          </div>
+          <p className="text-[10px] text-slate-400">
+            ※画像から戦力・名前を自動抽出し、戦力順に並び替えて登録します（控え判定あり）。
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
