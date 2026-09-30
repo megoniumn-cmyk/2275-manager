@@ -26,7 +26,7 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
     }
   }, [selectedDate]);
 
-  // heroesテーブルから各種英雄を取得 (実際のテーブル名: heroes)
+  // heroesテーブルから各種英雄を取得
   const fetchHeroes = async () => {
     const { data, error } = await supabase.from('heroes').select('*').order('display_order', { ascending: true });
     if (data && !error) {
@@ -72,11 +72,11 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
     }
   };
 
-  // ノート保存共通（基本・移転）
+  // ノート保存共通（基本・移転）- row: 1 を持たせる設計に対応
   const saveNote = async (pattern, noteText) => {
     const { error } = await supabase.from('foundry_note').upsert(
-      { eventdate: selectedDate, pattern, note: noteText },
-      { onConflict: 'eventdate,pattern' }
+      { eventdate: selectedDate, pattern, row: 1, note: noteText },
+      { onConflict: 'eventdate,pattern,row' }
     );
     if (!error) {
       alert(`${pattern === '基本' ? '基本方針' : '移転スケジュール'}を保存しました！`);
@@ -95,7 +95,6 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
 
   // フェーズ2テーブル一括保存
   const handleSavePhase2Table = async () => {
-    // 1. 一度既存のフェーズ2データを確実に削除
     const { error: deleteError } = await supabase
       .from('foundry_note')
       .delete()
@@ -107,7 +106,6 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
       return;
     }
 
-    // 2. 新しい行データを挿入
     const rowsToInsert = phase2Rows.map((r, idx) => ({
       eventdate: selectedDate,
       pattern: 'phase2',
@@ -294,7 +292,6 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
                         />
                       </td>
                       <td className="p-2">
-                        {/* 指示内容を textarea に変更して改行可能に */}
                         <textarea
                           className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white w-full outline-none h-16 resize-y"
                           value={r.note || ''}
@@ -321,8 +318,247 @@ export default function StrategyAndFormation({ supabase, selectedDate }) {
         </div>
       </div>
 
-      {/* 2. 編成登録エリア (集結・駐屯) はそのまま省略せずに配置 */}
-      {/* ※お手元のコードの「2. 部隊編成登録 (集結・駐屯)」部分をそのまま続けてください */}
+      {/* 2. 部隊編成登録エリア (集結・駐屯) */}
+      <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-6">
+        <h2 className="text-lg font-bold text-white">⚔️ 部隊編成登録 (集結・駐屯)</h2>
+
+        {/* 集結編成一覧 */}
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <h3 className="text-sm font-semibold text-cyan-400">集結編成一覧</h3>
+            <button
+              onClick={() => handleAddFormation('rally')}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"
+            >
+              ＋ 集結を追加
+            </button>
+          </div>
+
+          {rallyList.length === 0 ? (
+            <p className="text-xs text-slate-500">集結編成は登録されていません。</p>
+          ) : (
+            <div className="space-y-3">
+              {rallyList.map((item) => (
+                <div key={item.id} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-white bg-slate-800 px-2.5 py-1 rounded">
+                      集結 #{item.no}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteFormation(item.id)}
+                      className="text-rose-400 hover:text-rose-300 text-xs font-bold"
+                    >
+                      削除
+                    </button>
+                  </div>
+
+                  {/* 英雄選択 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400">盾兵英雄</label>
+                      <select
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                        value={item.shield || ''}
+                        onChange={(e) => handleUpdateFormation(item.id, 'shield', e.target.value)}
+                      >
+                        <option value="">未選択</option>
+                        {shieldHeroes.map((h) => (
+                          <option key={h.id} value={h.name}>{h.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">槍兵英雄</label>
+                      <select
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                        value={item.spear || ''}
+                        onChange={(e) => handleUpdateFormation(item.id, 'spear', e.target.value)}
+                      >
+                        <option value="">未選択</option>
+                        {spearHeroes.map((h) => (
+                          <option key={h.id} value={h.name}>{h.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">弓兵英雄</label>
+                      <select
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                        value={item.bow || ''}
+                        onChange={(e) => handleUpdateFormation(item.id, 'bow', e.target.value)}
+                      >
+                        <option value="">未選択</option>
+                        {bowHeroes.map((h) => (
+                          <option key={h.id} value={h.name}>{h.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 兵種比率 */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400">盾比率 (%)</label>
+                      <input
+                        type="number"
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1 text-xs text-white outline-none"
+                        value={item.shield_ratio ?? 50}
+                        onChange={(e) => handleUpdateFormation(item.id, 'shield_ratio', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">槍比率 (%)</label>
+                      <input
+                        type="number"
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1 text-xs text-white outline-none"
+                        value={item.spear_rasio ?? 0}
+                        onChange={(e) => handleUpdateFormation(item.id, 'spear_rasio', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">弓比率 (%)</label>
+                      <input
+                        type="number"
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1 text-xs text-white outline-none"
+                        value={item.bow_ratio ?? 50}
+                        onChange={(e) => handleUpdateFormation(item.id, 'bow_ratio', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 参加者 (joiner 1~4) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[1, 2, 3, 4].map((num) => (
+                      <div key={num}>
+                        <label className="text-[10px] text-slate-400">参加者 {num}</label>
+                        <select
+                          className="w-full bg-[#151c2c] border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                          value={item[`joiner${num}`] || ''}
+                          onChange={(e) => handleUpdateFormation(item.id, `joiner${num}`, e.target.value)}
+                        >
+                          <option value="">未選択</option>
+                          {joinerHeroes.map((jh) => (
+                            <option key={jh.id} value={jh.name}>{jh.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 駐屯編成一覧 */}
+        <div className="space-y-3 pt-4 border-t border-slate-800">
+          <div className="flex justify-between items-center">
+            <h3 className="text-sm font-semibold text-cyan-400">駐屯編成一覧</h3>
+            <button
+              onClick={() => handleAddFormation('garrison')}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition"
+            >
+              ＋ 駐屯を追加
+            </button>
+          </div>
+
+          {garrisonList.length === 0 ? (
+            <p className="text-xs text-slate-500">駐屯編成は登録されていません。</p>
+          ) : (
+            <div className="space-y-3">
+              {garrisonList.map((item) => (
+                <div key={item.id} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-white bg-slate-800 px-2.5 py-1 rounded">
+                      駐屯 #{item.no}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteFormation(item.id)}
+                      className="text-rose-400 hover:text-rose-300 text-xs font-bold"
+                    >
+                      削除
+                    </button>
+                  </div>
+
+                  {/* 英雄選択 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400">盾兵英雄</label>
+                      <select
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                        value={item.shield || ''}
+                        onChange={(e) => handleUpdateFormation(item.id, 'shield', e.target.value)}
+                      >
+                        <option value="">未選択</option>
+                        {shieldHeroes.map((h) => (
+                          <option key={h.id} value={h.name}>{h.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">槍兵英雄</label>
+                      <select
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                        value={item.spear || ''}
+                        onChange={(e) => handleUpdateFormation(item.id, 'spear', e.target.value)}
+                      >
+                        <option value="">未選択</option>
+                        {spearHeroes.map((h) => (
+                          <option key={h.id} value={h.name}>{h.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">弓兵英雄</label>
+                      <select
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1.5 text-xs text-white outline-none"
+                        value={item.bow || ''}
+                        onChange={(e) => handleUpdateFormation(item.id, 'bow', e.target.value)}
+                      >
+                        <option value="">未選択</option>
+                        {bowHeroes.map((h) => (
+                          <option key={h.id} value={h.name}>{h.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 兵種比率 */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400">盾比率 (%)</label>
+                      <input
+                        type="number"
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1 text-xs text-white outline-none"
+                        value={item.shield_ratio ?? 50}
+                        onChange={(e) => handleUpdateFormation(item.id, 'shield_ratio', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">槍比率 (%)</label>
+                      <input
+                        type="number"
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1 text-xs text-white outline-none"
+                        value={item.spear_rasio ?? 0}
+                        onChange={(e) => handleUpdateFormation(item.id, 'spear_rasio', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">弓比率 (%)</label>
+                      <input
+                        type="number"
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded p-1 text-xs text-white outline-none"
+                        value={item.bow_ratio ?? 50}
+                        onChange={(e) => handleUpdateFormation(item.id, 'bow_ratio', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
