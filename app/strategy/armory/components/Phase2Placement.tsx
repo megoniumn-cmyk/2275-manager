@@ -32,7 +32,7 @@ export default function Phase2Placement({ supabase, selectedDate }) {
   }, [selectedDate]);
 
   const fetchPhase2Members = async () => {
-    // phase = 2 のデータを取得
+    // phase = 2 のデータを取得 (order_indexの数字が小さい順)
     const { data, error } = await supabase
       .from('foundry_memberlist')
       .select('*')
@@ -68,7 +68,7 @@ export default function Phase2Placement({ supabase, selectedDate }) {
       .eq('eventdate', selectedDate)
       .eq('phase', 2);
 
-    // phaseを 2 に書き換えて新規挿入
+    // phaseを 2 に書き換えて新規挿入（他の項目のデータはそのまま引き継ぐ）
     const newPhase2Rows = phase1Data.map((item) => {
       const { id, ...rest } = item;
       return {
@@ -143,19 +143,24 @@ export default function Phase2Placement({ supabase, selectedDate }) {
                   />
                 </td>
                 <td className="p-3">
-                  <input
-                    type="checkbox"
-                    className={`w-4 h-4 rounded cursor-pointer ${m.bench ? 'accent-amber-500' : 'accent-cyan-500'}`}
-                    checked={!!m.bench}
-                    onChange={(e) => handleUpdateMember(m.id, 'bench', e.target.checked)}
-                  />
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      className={`w-4 h-4 rounded cursor-pointer ${
+                        m.bench ? 'accent-amber-500 bg-amber-500' : 'accent-cyan-500'
+                      }`}
+                      checked={!!m.bench}
+                      onChange={(e) => handleUpdateMember(m.id, 'bench', e.target.checked)}
+                    />
+                  </div>
                 </td>
                 <td className="p-3">
                   <select
                     className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none"
-                    value={m.building || 'フリー'}
+                    value={m.building || ''}
                     onChange={(e) => handleUpdateMember(m.id, 'building', e.target.value)}
                   >
+                    <option value="" disabled>未選択</option>
                     {BUILDINGS_PHASE2.map((b) => (
                       <option key={b} value={b}>{b}</option>
                     ))}
@@ -164,9 +169,10 @@ export default function Phase2Placement({ supabase, selectedDate }) {
                 <td className="p-3">
                   <select
                     className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none"
-                    value={m.role || '1'}
+                    value={m.role || ''}
                     onChange={(e) => handleUpdateMember(m.id, 'role', e.target.value)}
                   >
+                    <option value="" disabled>未選択</option>
                     {ROLES_PHASE2.map((r) => (
                       <option key={r} value={r}>{r}</option>
                     ))}
@@ -177,7 +183,7 @@ export default function Phase2Placement({ supabase, selectedDate }) {
             {phase2Members.length === 0 && (
               <tr>
                 <td colSpan="5" className="p-6 text-center text-slate-500">
-                  フェーズ2のデータがありません。「フェーズ1の配置を読み込む」を押してください。
+                  フェーズ2のデータがありません。「フェーズ1のプレースメントを読み込む」または「フェーズ1の配置を読み込む」を押してください。
                 </td>
               </tr>
             )}

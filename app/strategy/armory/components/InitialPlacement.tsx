@@ -15,7 +15,7 @@ const BUILDINGS_PHASE1 = [
   'フリー',
 ];
 
-const ROLES = ['Leader', '1', '2', '3', '4', '5', '6', '7', '8'];
+const ROLES = ['未選択', 'Leader', '1', '2', '3', '4', '5', '6', '7', '8'];
 
 export default function InitialPlacement({ supabase, selectedDate }) {
   const [members, setMembers] = useState([]);
@@ -25,10 +25,12 @@ export default function InitialPlacement({ supabase, selectedDate }) {
   }, [selectedDate]);
 
   const fetchMembers = async () => {
+    // phase = 1 のデータのみを取得し、order_index順に並べる
     const { data, error } = await supabase
       .from('foundry_memberlist')
       .select('*')
       .eq('eventdate', selectedDate)
+      .eq('phase', 1)
       .order('order_index', { ascending: true });
 
     if (!error && data) {
@@ -62,7 +64,7 @@ export default function InitialPlacement({ supabase, selectedDate }) {
             <tr>
               <th className="p-3">名前</th>
               <th className="p-3">戦力</th>
-              <th className="p-3">控え</th>
+              <th className="p-3 text-center">控え</th>
               <th className="p-3">施設</th>
               <th className="p-3">役割</th>
             </tr>
@@ -70,16 +72,60 @@ export default function InitialPlacement({ supabase, selectedDate }) {
           <tbody className="divide-y divide-slate-800">
             {members.map((m) => (
               <tr key={m.id} className="hover:bg-slate-800/40">
-                <td className="p-3 font-bold text-white">{m.name}</td>
-                <td className="p-3 text-cyan-400">{m.power?.toLocaleString()}</td>
+                {/* 名前 (テキストボックスで編集可能) */}
                 <td className="p-3">
-                  <span className={`px-2 py-1 rounded text-[10px] font-bold ${m.bench ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                    {m.bench ? '控え' : '参戦'}
-                  </span>
+                  <input
+                    type="text"
+                    className="bg-[#0b0f19] border border-slate-700 rounded px-2 py-1.5 text-white font-bold w-full outline-none focus:border-cyan-500"
+                    value={m.name || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMembers((prev) =>
+                        prev.map((item) => (item.id === m.id ? { ...item, name: val } : item))
+                      );
+                    }}
+                    onBlur={(e) => handleUpdateMember(m.id, 'name', e.target.value)}
+                  />
                 </td>
+
+                {/* 戦力 (テキストボックスで編集可能) */}
+                <td className="p-3">
+                  <input
+                    type="number"
+                    className="bg-[#0b0f19] border border-slate-700 rounded px-2 py-1.5 text-cyan-400 font-bold w-28 outline-none focus:border-cyan-500"
+                    value={m.power ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? '' : Number(e.target.value);
+                      setMembers((prev) =>
+                        prev.map((item) => (item.id === m.id ? { ...item, power: val } : item))
+                      );
+                    }}
+                    onBlur={(e) => {
+                      const val = e.target.value === '' ? 0 : Number(e.target.value);
+                      handleUpdateMember(m.id, 'power', val);
+                    }}
+                  />
+                </td>
+
+                {/* 控えチェックボックス (色分け・判定可能) */}
+                <td className="p-3 text-center">
+                  <label className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer transition ${
+                    m.bench ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      className="rounded accent-cyan-500 cursor-pointer"
+                      checked={Boolean(m.bench)}
+                      onChange={(e) => handleUpdateMember(m.id, 'bench', e.target.checked)}
+                    />
+                    <span className="font-bold text-[10px]">{m.bench ? '控え' : '参戦'}</span>
+                  </label>
+                </td>
+
+                {/* 施設プルダウン */}
                 <td className="p-3">
                   <select
-                    className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none"
+                    className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none focus:border-cyan-500"
                     value={m.building || 'フリー'}
                     onChange={(e) => handleUpdateMember(m.id, 'building', e.target.value)}
                   >
@@ -88,10 +134,12 @@ export default function InitialPlacement({ supabase, selectedDate }) {
                     ))}
                   </select>
                 </td>
+
+                {/* 役割プルダウン */}
                 <td className="p-3">
                   <select
-                    className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none"
-                    value={m.role || '1'}
+                    className="bg-[#0b0f19] border border-slate-700 rounded p-2 text-white outline-none focus:border-cyan-500"
+                    value={m.role || '未選択'}
                     onChange={(e) => handleUpdateMember(m.id, 'role', e.target.value)}
                   >
                     {ROLES.map((r) => (
