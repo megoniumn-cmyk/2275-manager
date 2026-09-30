@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
 
 const getComingSunday = () => {
   const d = new Date();
@@ -67,18 +66,10 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
     }
   };
 
-  const fileToGenerativePart = async (file) => {
+  const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result.split(',')[1];
-        resolve({
-          inlineData: {
-            data: base64String,
-            mimeType: file.type,
-          },
-        });
-      };
+      reader.onloadend = () => resolve(reader.result);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
@@ -95,29 +86,25 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
 
     setUploading(true);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey) {
-        alert('APIキーが設定されていません。');
-        setUploading(false);
-        e.target.value = '';
-        return;
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
       let allExtractedMembers = [];
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const imagePart = await fileToGenerativePart(file);
+        const imageBase64 = await fileToBase64(file);
 
-        const prompt = 'Extract all players name (string), power (integer), and bench (boolean) from this screenshot. Return strictly as a JSON array format like [{"name":"abc","power":123,"bench":false}] with no markdown.';
-
-       const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: [prompt, imagePart],
+        // 自作のサーバー側API（/api/analyze-screenshot）を呼び出し
+        const res = await fetch('/api/analyze-screenshot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64 }),
         });
 
-        const textResponse = response.text ? response.text.trim() : '';
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'AI解析に失敗しました');
+        }
+
+        const textResponse = data.text ? data.text.trim() : '';
         const cleanJsonText = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
         
         const parsedMembers = JSON.parse(cleanJsonText);
@@ -210,6 +197,7 @@ export default function FoundryHeader({ supabase, selectedDate, setSelectedDate,
               onChange={(e) => setNewDate(e.target.value)}
             />
             <button
+              type="button"
               onClick={handleAddEventDate}
               className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition whitespace-nowrap"
             >
