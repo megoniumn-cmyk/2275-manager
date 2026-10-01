@@ -46,7 +46,6 @@ const PHASE_DEFINITIONS: { name: string; blocks: number }[] = [
   { name: 'FC10Gen18', blocks: 6 },
 ];
 
-// 透け感と落ち着いた上品なトーン（ダーク背景に馴染む薄めの色み）に調整
 const getPhaseCellStyle = (phase: string) => {
   switch (phase) {
     case 'Gen1': return 'bg-emerald-950/30 text-emerald-300/90 border-emerald-900/30';
@@ -418,16 +417,16 @@ export default function EventTimeline() {
         {loading ? (
           <div className="text-center py-12 text-gray-400 text-sm">読み込み中...</div>
         ) : (
-          <div className="overflow-x-auto border border-gray-800/80 rounded-xl shadow-2xl bg-[#0f172a]">
-            <table className="w-full border-collapse text-left text-xs sm:text-sm">
-              <thead className="bg-[#0b1329] text-gray-400 uppercase tracking-wider border-b border-gray-800">
+          <div className="overflow-x-auto max-h-[75vh] border border-gray-800/80 rounded-xl shadow-2xl bg-[#0f172a]">
+            <table className="w-full border-collapse text-left text-xs sm:text-sm relative">
+              <thead className="bg-[#0b1329] text-gray-400 uppercase tracking-wider border-b border-gray-800 sticky top-0 z-20 shadow-md">
                 <tr>
-                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">Date</th>
-                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">サーバー進行度</th>
-                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">SvS戦闘日</th>
-                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">霜竜の覇者</th>
-                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">雪原兵器リーグ</th>
-                  <th className="p-2.5 sm:p-4 font-semibold whitespace-nowrap">王国移民・合併</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap bg-[#0b1329]">Date</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap bg-[#0b1329]">サーバー進行度</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap bg-[#0b1329]">SvS戦闘日</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap bg-[#0b1329]">霜竜の覇者</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap bg-[#0b1329]">雪原兵器リーグ</th>
+                  <th className="p-2.5 sm:p-4 font-semibold whitespace-nowrap bg-[#0b1329]">王国移民・合併</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
@@ -437,7 +436,6 @@ export default function EventTimeline() {
 
                   const phaseStyle = getPhaseCellStyle(row.serverPhase);
 
-                  // 各イベントの透け感ある落ち着いたトーンのスタイル
                   let svsStyle = 'text-gray-500/60';
                   if (row.svsStatus) {
                     svsStyle = 'bg-amber-950/25 text-amber-300/90 font-medium border-amber-900/20';
@@ -493,7 +491,7 @@ export default function EventTimeline() {
 
                       {frostSpan > 0 ? (
                         <td className={`p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap border-b border-gray-800/40 ${frostStyle}`} rowSpan={frostSpan}>
-                          {row.frostDragon}
+                          {frostDragon}
                         </td>
                       ) : null}
 
