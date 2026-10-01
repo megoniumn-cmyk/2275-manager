@@ -19,31 +19,32 @@ interface TimelineRow {
   isToday: boolean;
 }
 
-const PHASE_DEFINITIONS: { name: string; weeks: number }[] = [
-  { name: 'Gen1', weeks: 4 * 2 },
-  { name: 'Gen2', weeks: 1 * 2 },
-  { name: 'FC3Gen2', weeks: 3 * 2 },
-  { name: 'FC3Gen3', weeks: 3 * 2 },
-  { name: 'FC5Gen3', weeks: 2 * 2 },
-  { name: '領主神話装備', weeks: 1 * 2 },
-  { name: 'FC5Gen4', weeks: 2 * 2 },
-  { name: '戦争学園', weeks: 4 * 2 },
-  { name: 'FC5Gen5', weeks: 3 * 2 },
-  { name: 'FC8Gen5', weeks: 3 * 2 },
-  { name: 'FC8Gen6', weeks: 6 * 2 },
-  { name: 'FC8Gen7', weeks: 3 * 2 },
-  { name: 'FC10Gen7', weeks: 3 * 2 },
-  { name: 'FC10Gen8', weeks: 6 * 2 },
-  { name: 'FC10Gen9', weeks: 6 * 2 },
-  { name: 'FC10Gen10', weeks: 6 * 2 },
-  { name: 'FC10Gen11', weeks: 6 * 2 },
-  { name: 'FC10Gen12', weeks: 6 * 2 },
-  { name: 'FC10Gen13', weeks: 6 * 2 },
-  { name: 'FC10Gen14', weeks: 6 * 2 },
-  { name: 'FC10Gen15', weeks: 6 * 2 },
-  { name: 'FC10Gen16', weeks: 6 * 2 },
-  { name: 'FC10Gen17', weeks: 6 * 2 },
-  { name: 'FC10Gen18', weeks: 6 * 2 },
+// ご指定いただいた正確なフェーズ定義（2週間を1ブロックとする数）
+const PHASE_DEFINITIONS: { name: string; blocks: number }[] = [
+  { name: 'Gen1', blocks: 4 },          // 2週×4
+  { name: 'Gen2', blocks: 1 },          // 2週×1
+  { name: 'FC3Gen2', blocks: 3 },       // 2週×3
+  { name: 'FC3Gen3', blocks: 3 },       // 2週×3
+  { name: 'FC5Gen3', blocks: 2 },       // 2週×2
+  { name: '領主神話装備', blocks: 1 },    // 2週×1
+  { name: 'FC5Gen4', blocks: 2 },       // 2週×2
+  { name: '戦争学園', blocks: 4 },      // 2週×4
+  { name: 'FC5Gen5', blocks: 3 },       // 2週×3
+  { name: 'FC8Gen5', blocks: 3 },       // 2週×3
+  { name: 'FC8Gen6', blocks: 6 },       // 2週×6
+  { name: 'FC8Gen7', blocks: 3 },       // 2週×3
+  { name: 'FC10Gen7', blocks: 3 },      // 2週×3
+  { name: 'FC10Gen8', blocks: 6 },      // 2週×6
+  { name: 'FC10Gen9', blocks: 6 },      // 2週×6
+  { name: 'FC10Gen10', blocks: 6 },     // 2週×6
+  { name: 'FC10Gen11', blocks: 6 },     // 2週×6
+  { name: 'FC10Gen12', blocks: 6 },     // 2週×6
+  { name: 'FC10Gen13', blocks: 6 },     // 2週×6
+  { name: 'FC10Gen14', blocks: 6 },     // 2週×6
+  { name: 'FC10Gen15', blocks: 6 },     // 2週×6
+  { name: 'FC10Gen16', blocks: 6 },     // 2週×6
+  { name: 'FC10Gen17', blocks: 6 },     // 2週×6
+  { name: 'FC10Gen18', blocks: 6 },     // 2週×6
 ];
 
 const getPhaseBadgeStyle = (phase: string) => {
@@ -71,7 +72,7 @@ const getPhaseBadgeStyle = (phase: string) => {
     case 'FC10Gen15': return 'bg-green-900/80 text-green-100 border-green-500/60';
     case 'FC10Gen16': return 'bg-purple-900/80 text-purple-100 border-purple-500/60';
     case 'FC10Gen17': return 'bg-emerald-900/80 text-emerald-100 border-emerald-500/60';
-    case 'FC10Gen18': return 'bg-pink-900/80 text-pink-100 border-pink-500/60';
+    case 'FC10Gen18': return 'bg-pink-900/80 text-pink-100 border-pink-600/60';
     default: return 'bg-slate-900/70 text-slate-300 border-slate-700/60';
   }
 };
@@ -106,43 +107,60 @@ export default function EventTimeline() {
     return dates;
   };
 
+  /**
+   * サーバーグループ情報とターゲット日付から、正確なサーバー進行度を算出する関数
+   */
   const calculatePhaseAtDate = (groupData: any, targetDate: Date) => {
     if (!groupData) return '';
 
-    const baselineDate = new Date('2025-09-29');
-    baselineDate.setHours(0, 0, 0, 0);
+    // 1. 基準日（2025-09-29）または gen1開始日を設定
+    let effectiveBaselineDate = new Date('2025-09-29');
+    effectiveBaselineDate.setHours(0, 0, 0, 0);
 
-    let effectiveStartDate = baselineDate;
     let basePhaseName = groupData.current_phase_name;
     let basePhaseIndex = Number(groupData.phase_index) || 1;
 
+    // 2025/9/29時点でまだ誕生していないサーバーの場合（gen1が設定されている場合）
     if (groupData.gen1) {
       const gen1Date = new Date(groupData.gen1);
       gen1Date.setHours(0, 0, 0, 0);
-      effectiveStartDate = gen1Date;
+      
+      if (targetDate < gen1Date) {
+        return ''; // サーバー誕生前は表示しない
+      }
+      effectiveBaselineDate = gen1Date;
       basePhaseName = 'Gen1';
-      basePhaseIndex = 1;
+      basePhaseIndex = 1; // Gen1の1ブロック目からスタート
     }
 
-    const diffTime = targetDate.getTime() - effectiveStartDate.getTime();
-    const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+    // 2. 基準日からの経過日数（ミリ秒）を計算し、2週間（14日 = 2週×1ブロック）単位のステップ数に変換
+    const diffTime = targetDate.getTime() - effectiveBaselineDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffTwoWeekSteps = Math.floor(diffDays / 14);
 
-    if (diffWeeks < 0) return '';
-
+    // 3. 基準時点のフェーズが全体の中で何番目のトータルブロック目にあるか計算
     const baseDefIndex = PHASE_DEFINITIONS.findIndex(p => p.name === basePhaseName);
     if (baseDefIndex === -1) return basePhaseName || '';
 
-    const weeksPerBlock = 2;
-    const baseTotalTwoWeekSteps = (baseDefIndex * (PHASE_DEFINITIONS[baseDefIndex].weeks / weeksPerBlock)) + Math.floor((basePhaseIndex - 1));
-    const targetTwoWeekSteps = baseTotalTwoWeekSteps + Math.floor(diffWeeks / weeksPerBlock);
+    let totalBaselineBlocks = 0;
+    for (let i = 0; i < baseDefIndex; i++) {
+      totalBaselineBlocks += PHASE_DEFINITIONS[i].blocks;
+    }
+    // phase_index は「その世代の何番目のブロックか（1始まり）」なので、経過ブロック数は (phase_index - 1)
+    totalBaselineBlocks += (basePhaseIndex - 1);
 
-    let accumulatedSteps = 0;
+    // 4. ターゲット日付時点のトータルブロック数を算出
+    const targetTotalBlocks = totalBaselineBlocks + diffTwoWeekSteps;
+    if (targetTotalBlocks < 0) return '';
+
+    // 5. トータルブロック数からどのフェーズに属するかを特定
+    let accumulated = 0;
     for (let i = 0; i < PHASE_DEFINITIONS.length; i++) {
-      const blocksInPhase = PHASE_DEFINITIONS[i].weeks / weeksPerBlock;
-      if (targetTwoWeekSteps < accumulatedSteps + blocksInPhase) {
-        return PHASE_DEFINITIONS[i].name;
+      const phase = PHASE_DEFINITIONS[i];
+      if (targetTotalBlocks < accumulated + phase.blocks) {
+        return phase.name;
       }
-      accumulatedSteps += blocksInPhase;
+      accumulated += phase.blocks;
     }
 
     return 'FC10Gen18以降';
@@ -156,6 +174,7 @@ export default function EventTimeline() {
     today.setHours(0, 0, 0, 0);
 
     try {
+      // ユーザーが入力したサーバー番号が属するグループを取得
       const { data: groupData } = await supabase
         .from('server_groups')
         .select('*')
@@ -342,6 +361,7 @@ export default function EventTimeline() {
     fetchAndBuildTimeline();
   }, [serverNumber]);
 
+  // サーバー進行度の連続するセルを結合するための rowSpan 計算関数
   const calculatePhaseSpans = (data: TimelineRow[]) => {
     const spans: number[] = new Array(data.length).fill(1);
     let i = 0;
