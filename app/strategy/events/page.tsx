@@ -491,7 +491,7 @@ export default function EventTimeline() {
 
                       {frostSpan > 0 ? (
                         <td className={`p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap border-b border-gray-800/40 ${frostStyle}`} rowSpan={frostSpan}>
-                          {frostDragon}
+                          {row.frostDragon}
                         </td>
                       ) : null}
 
