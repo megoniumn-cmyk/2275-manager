@@ -47,33 +47,34 @@ const PHASE_DEFINITIONS: { name: string; blocks: number }[] = [
   { name: 'FC10Gen18', blocks: 6 },     // 2週×6
 ];
 
-const getPhaseBadgeStyle = (phase: string) => {
+// セル全体の背景色と文字色を定義
+const getPhaseCellStyle = (phase: string) => {
   switch (phase) {
-    case 'Gen1': return 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60';
-    case 'Gen2': return 'bg-purple-950/70 text-purple-300 border-purple-700/60';
-    case 'FC3Gen2': return 'bg-pink-950/70 text-pink-300 border-pink-700/60';
-    case 'FC3Gen3': return 'bg-lime-950/70 text-lime-300 border-lime-700/60';
-    case 'FC5Gen3': return 'bg-violet-950/70 text-violet-300 border-violet-700/60';
-    case '領主神話装備': return 'bg-fuchsia-950/70 text-fuchsia-300 border-fuchsia-700/60';
-    case 'FC5Gen4': return 'bg-green-950/70 text-green-300 border-green-700/60';
-    case '戦争学園': return 'bg-purple-900/70 text-purple-200 border-purple-600/60';
-    case 'FC5Gen5': return 'bg-emerald-900/70 text-emerald-200 border-emerald-600/60';
-    case 'FC8Gen5': return 'bg-pink-900/70 text-pink-200 border-pink-600/60';
-    case 'FC8Gen6': return 'bg-violet-900/70 text-violet-200 border-violet-600/60';
-    case 'FC8Gen7': return 'bg-lime-900/70 text-lime-200 border-lime-600/60';
-    case 'FC10Gen7': return 'bg-fuchsia-900/70 text-fuchsia-200 border-fuchsia-600/60';
-    case 'FC10Gen8': return 'bg-green-900/70 text-green-200 border-green-600/60';
-    case 'FC10Gen9': return 'bg-purple-950/80 text-purple-200 border-purple-500/60';
-    case 'FC10Gen10': return 'bg-emerald-950/80 text-emerald-200 border-emerald-500/60';
-    case 'FC10Gen11': return 'bg-pink-950/80 text-pink-200 border-pink-500/60';
-    case 'FC10Gen12': return 'bg-lime-950/80 text-lime-200 border-lime-500/60';
-    case 'FC10Gen13': return 'bg-violet-950/80 text-violet-200 border-violet-500/60';
-    case 'FC10Gen14': return 'bg-fuchsia-950/80 text-fuchsia-200 border-fuchsia-500/60';
-    case 'FC10Gen15': return 'bg-green-900/80 text-green-100 border-green-500/60';
-    case 'FC10Gen16': return 'bg-purple-900/80 text-purple-100 border-purple-500/60';
-    case 'FC10Gen17': return 'bg-emerald-900/80 text-emerald-100 border-emerald-500/60';
+    case 'Gen1': return 'bg-emerald-950/70 text-emerald-200 border-emerald-800/60';
+    case 'Gen2': return 'bg-purple-950/70 text-purple-200 border-purple-800/60';
+    case 'FC3Gen2': return 'bg-pink-950/70 text-pink-200 border-pink-800/60';
+    case 'FC3Gen3': return 'bg-lime-950/70 text-lime-200 border-lime-800/60';
+    case 'FC5Gen3': return 'bg-violet-950/70 text-violet-200 border-violet-800/60';
+    case '領主神話装備': return 'bg-fuchsia-950/70 text-fuchsia-200 border-fuchsia-800/60';
+    case 'FC5Gen4': return 'bg-green-950/70 text-green-200 border-green-800/60';
+    case '戦争学園': return 'bg-purple-900/70 text-purple-100 border-purple-700/60';
+    case 'FC5Gen5': return 'bg-emerald-900/70 text-emerald-100 border-emerald-700/60';
+    case 'FC8Gen5': return 'bg-pink-900/70 text-pink-100 border-pink-700/60';
+    case 'FC8Gen6': return 'bg-violet-900/70 text-violet-100 border-violet-700/60';
+    case 'FC8Gen7': return 'bg-lime-900/70 text-lime-100 border-lime-700/60';
+    case 'FC10Gen7': return 'bg-fuchsia-900/70 text-fuchsia-100 border-fuchsia-700/60';
+    case 'FC10Gen8': return 'bg-green-900/70 text-green-100 border-green-700/60';
+    case 'FC10Gen9': return 'bg-purple-950/80 text-purple-100 border-purple-600/60';
+    case 'FC10Gen10': return 'bg-emerald-950/80 text-emerald-100 border-emerald-600/60';
+    case 'FC10Gen11': return 'bg-pink-950/80 text-pink-100 border-pink-600/60';
+    case 'FC10Gen12': return 'bg-lime-950/80 text-lime-100 border-lime-600/60';
+    case 'FC10Gen13': return 'bg-violet-950/80 text-violet-100 border-violet-600/60';
+    case 'FC10Gen14': return 'bg-fuchsia-950/80 text-fuchsia-100 border-fuchsia-600/60';
+    case 'FC10Gen15': return 'bg-green-900/80 text-green-100 border-green-600/60';
+    case 'FC10Gen16': return 'bg-purple-900/80 text-purple-100 border-purple-600/60';
+    case 'FC10Gen17': return 'bg-emerald-900/80 text-emerald-100 border-emerald-600/60';
     case 'FC10Gen18': return 'bg-pink-900/80 text-pink-100 border-pink-600/60';
-    default: return 'bg-slate-900/70 text-slate-300 border-slate-700/60';
+    default: return 'bg-slate-900/40 text-slate-300 border-slate-800/60';
   }
 };
 
@@ -107,38 +108,31 @@ export default function EventTimeline() {
     return dates;
   };
 
-  /**
-   * サーバーグループ情報とターゲット日付から、正確なサーバー進行度を算出する関数
-   */
   const calculatePhaseAtDate = (groupData: any, targetDate: Date) => {
     if (!groupData) return '';
 
-    // 1. 基準日（2025-09-29）または gen1開始日を設定
     let effectiveBaselineDate = new Date('2025-09-29');
     effectiveBaselineDate.setHours(0, 0, 0, 0);
 
     let basePhaseName = groupData.current_phase_name;
     let basePhaseIndex = Number(groupData.phase_index) || 1;
 
-    // 2025/9/29時点でまだ誕生していないサーバーの場合（gen1が設定されている場合）
     if (groupData.gen1) {
       const gen1Date = new Date(groupData.gen1);
       gen1Date.setHours(0, 0, 0, 0);
       
       if (targetDate < gen1Date) {
-        return ''; // サーバー誕生前は表示しない
+        return '';
       }
       effectiveBaselineDate = gen1Date;
       basePhaseName = 'Gen1';
-      basePhaseIndex = 1; // Gen1の1ブロック目からスタート
+      basePhaseIndex = 1;
     }
 
-    // 2. 基準日からの経過日数（ミリ秒）を計算し、2週間（14日 = 2週×1ブロック）単位のステップ数に変換
     const diffTime = targetDate.getTime() - effectiveBaselineDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     const diffTwoWeekSteps = Math.floor(diffDays / 14);
 
-    // 3. 基準時点のフェーズが全体の中で何番目のトータルブロック目にあるか計算
     const baseDefIndex = PHASE_DEFINITIONS.findIndex(p => p.name === basePhaseName);
     if (baseDefIndex === -1) return basePhaseName || '';
 
@@ -146,14 +140,11 @@ export default function EventTimeline() {
     for (let i = 0; i < baseDefIndex; i++) {
       totalBaselineBlocks += PHASE_DEFINITIONS[i].blocks;
     }
-    // phase_index は「その世代の何番目のブロックか（1始まり）」なので、経過ブロック数は (phase_index - 1)
     totalBaselineBlocks += (basePhaseIndex - 1);
 
-    // 4. ターゲット日付時点のトータルブロック数を算出
     const targetTotalBlocks = totalBaselineBlocks + diffTwoWeekSteps;
     if (targetTotalBlocks < 0) return '';
 
-    // 5. トータルブロック数からどのフェーズに属するかを特定
     let accumulated = 0;
     for (let i = 0; i < PHASE_DEFINITIONS.length; i++) {
       const phase = PHASE_DEFINITIONS[i];
@@ -174,7 +165,6 @@ export default function EventTimeline() {
     today.setHours(0, 0, 0, 0);
 
     try {
-      // ユーザーが入力したサーバー番号が属するグループを取得
       const { data: groupData } = await supabase
         .from('server_groups')
         .select('*')
@@ -210,7 +200,6 @@ export default function EventTimeline() {
 
         const isToday = today >= dateObj && today < nextWeekDate;
 
-        // SvS戦闘日 (土曜日表示)
         const baseSvsDate = new Date('2025-10-11');
         baseSvsDate.setHours(0, 0, 0, 0);
         
@@ -228,9 +217,7 @@ export default function EventTimeline() {
           svsStatus = `SvS (${satDateStr})`;
         }
 
-        // --- 霜竜の覇者 ---
         let frostDragon = '';
-        
         const matchedFrostEvent = allFrostEvents?.find((ev: any) => {
           if (!ev.battle_date) return false;
           const bDate = new Date(ev.battle_date);
@@ -282,7 +269,6 @@ export default function EventTimeline() {
           }
         }
 
-        // --- 雪原兵器リーグ ---
         let snowLeague = '';
         if (allSnowSeasons) {
           for (const s of allSnowSeasons) {
@@ -323,7 +309,6 @@ export default function EventTimeline() {
           }
         }
 
-        // --- 王国移民・合併 ---
         const matchedImmig = immigrations?.find((imm: any) => {
           const immDate = new Date(imm.date);
           immDate.setHours(0, 0, 0, 0);
@@ -361,7 +346,6 @@ export default function EventTimeline() {
     fetchAndBuildTimeline();
   }, [serverNumber]);
 
-  // サーバー進行度の連続するセルを結合するための rowSpan 計算関数
   const calculatePhaseSpans = (data: TimelineRow[]) => {
     const spans: number[] = new Array(data.length).fill(1);
     let i = 0;
@@ -452,55 +436,35 @@ export default function EventTimeline() {
                   const phaseSpan = phaseSpans[index];
                   const frostSpan = frostDragonSpans[index];
 
-                  let immigrationBadge = null;
-                  if (row.immigration.startsWith('移民')) {
-                    immigrationBadge = (
-                      <span className="inline-block px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 whitespace-nowrap">
-                        {row.immigration}
-                      </span>
-                    );
-                  } else if (row.immigration.startsWith('合併')) {
-                    immigrationBadge = (
-                      <span className="inline-block px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-purple-950/60 text-purple-300 border border-purple-800/50 whitespace-nowrap">
-                        {row.immigration}
-                      </span>
-                    );
+                  // 各セルの背景色・文字色を決定
+                  const phaseStyle = getPhaseCellStyle(row.serverPhase);
+
+                  let svsStyle = 'text-gray-300';
+                  if (row.svsStatus) {
+                    svsStyle = 'bg-amber-950/70 text-amber-200 font-medium';
                   }
 
-                  let frostBadge = null;
+                  let frostStyle = 'text-gray-300';
                   if (row.frostDragon.startsWith('戦闘日')) {
-                    frostBadge = (
-                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-semibold bg-rose-950/80 text-rose-200 border border-rose-700/70 shadow-sm whitespace-nowrap">
-                        {row.frostDragon}
-                      </span>
-                    );
+                    frostStyle = 'bg-rose-950/90 text-rose-100 font-semibold shadow-inner';
                   } else if (row.frostDragon.includes('任命中')) {
-                    frostBadge = (
-                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-rose-950/40 text-rose-300/90 border border-rose-900/50 whitespace-nowrap">
-                        {row.frostDragon}
-                      </span>
-                    );
+                    frostStyle = 'bg-rose-950/50 text-rose-200';
                   }
 
-                  let snowBadge = null;
+                  let snowStyle = 'text-gray-300';
                   if (row.snowLeague.startsWith('エントリー')) {
-                    snowBadge = (
-                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-light bg-slate-900/60 text-slate-400 border border-slate-700/40 whitespace-nowrap">
-                        {row.snowLeague}
-                      </span>
-                    );
+                    snowStyle = 'bg-slate-900/60 text-slate-400 font-light';
                   } else if (row.snowLeague.startsWith('トーナメント')) {
-                    snowBadge = (
-                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-cyan-950/70 text-cyan-300 border-cyan-800/60 whitespace-nowrap">
-                        {row.snowLeague}
-                      </span>
-                    );
+                    snowStyle = 'bg-cyan-950/80 text-cyan-200 font-medium';
                   } else if (row.snowLeague.startsWith('争覇戦')) {
-                    snowBadge = (
-                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-bold bg-amber-600 text-white border border-amber-400 shadow-md whitespace-nowrap">
-                        {row.snowLeague}
-                      </span>
-                    );
+                    snowStyle = 'bg-amber-700/90 text-amber-50 font-bold';
+                  }
+
+                  let immigrationStyle = 'text-gray-300';
+                  if (row.immigration.startsWith('移民')) {
+                    immigrationStyle = 'bg-emerald-950/80 text-emerald-200 font-medium';
+                  } else if (row.immigration.startsWith('合併')) {
+                    immigrationStyle = 'bg-purple-950/80 text-purple-200 font-medium';
                   }
 
                   return (
@@ -508,7 +472,7 @@ export default function EventTimeline() {
                       key={index} 
                       className={`transition-colors ${
                         row.isToday 
-                          ? 'bg-blue-600/20 ring-2 ring-blue-500/80 relative z-10' 
+                          ? 'bg-blue-600/25 ring-2 ring-blue-500/80 relative z-10' 
                           : 'hover:bg-blue-600/5'
                       }`}
                     >
@@ -519,34 +483,27 @@ export default function EventTimeline() {
                       </td>
                       
                       {phaseSpan > 0 ? (
-                        <td className="p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap" rowSpan={phaseSpan}>
-                          {row.serverPhase ? (
-                            <span className={`inline-block px-2.5 py-1 sm:px-3 sm:py-1 rounded-lg text-[11px] sm:text-xs font-semibold border ${getPhaseBadgeStyle(row.serverPhase)} shadow-sm whitespace-nowrap`}>
-                              {row.serverPhase}
-                            </span>
-                          ) : ''}
+                        <td className={`p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap ${phaseStyle}`} rowSpan={phaseSpan}>
+                          {row.serverPhase}
                         </td>
                       ) : null}
 
-                      <td className="p-2.5 sm:p-4 border-r border-gray-800/85 text-gray-300 whitespace-nowrap">
-                        {row.svsStatus && (
-                          <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-amber-950/60 text-amber-300 border border-amber-800/50 whitespace-nowrap">
-                            {row.svsStatus}
-                          </span>
-                        )}
+                      <td className={`p-2.5 sm:p-4 border-r border-gray-800/85 whitespace-nowrap ${svsStyle}`}>
+                        {row.svsStatus}
                       </td>
 
                       {frostSpan > 0 ? (
-                        <td className="p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap" rowSpan={frostSpan}>
-                          {frostBadge}
+                        <td className={`p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap ${frostStyle}`} rowSpan={frostSpan}>
+                          {row.frostDragon}
                         </td>
                       ) : null}
 
-                      <td className="p-2.5 sm:p-4 border-r border-gray-800/85 text-gray-300 whitespace-nowrap">
-                        {snowBadge}
+                      <td className={`p-2.5 sm:p-4 border-r border-gray-800/85 whitespace-nowrap ${snowStyle}`}>
+                        {row.snowLeague}
                       </td>
-                      <td className="p-2.5 sm:p-4 text-gray-300 whitespace-nowrap">
-                        {immigrationBadge}
+                      
+                      <td className={`p-2.5 sm:p-4 whitespace-nowrap ${immigrationStyle}`}>
+                        {row.immigration}
                       </td>
                     </tr>
                   );
