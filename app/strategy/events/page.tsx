@@ -16,6 +16,7 @@ interface TimelineRow {
   frostDragon: string;
   snowLeague: string;
   immigration: string;
+  isToday: boolean;
 }
 
 const PHASE_DEFINITIONS: { name: string; weeks: number }[] = [
@@ -151,6 +152,9 @@ export default function EventTimeline() {
     setLoading(true);
     const rawDates = generateTimelineDates();
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     try {
       const { data: groupData } = await supabase
         .from('server_groups')
@@ -182,7 +186,12 @@ export default function EventTimeline() {
       const rows: TimelineRow[] = rawDates.map(({ dateStr, dateObj }) => {
         const serverPhase = calculatePhaseAtDate(groupData, dateObj);
 
-        // SvS判定 (土曜日表示)
+        const nextWeekDate = new Date(dateObj);
+        nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+
+        const isToday = today >= dateObj && today < nextWeekDate;
+
+        // SvS戦闘日 (土曜日表示)
         const baseSvsDate = new Date('2025-10-11');
         baseSvsDate.setHours(0, 0, 0, 0);
         
@@ -199,9 +208,6 @@ export default function EventTimeline() {
         if (diffDays >= 0 && diffDays % 28 === 0) {
           svsStatus = `SvS (${satDateStr})`;
         }
-
-        const nextWeekDate = new Date(dateObj);
-        nextWeekDate.setDate(nextWeekDate.getDate() + 7);
 
         // --- 霜竜の覇者 ---
         let frostDragon = '';
@@ -319,7 +325,8 @@ export default function EventTimeline() {
           svsStatus,
           frostDragon,
           snowLeague,
-          immigration
+          immigration,
+          isToday
         };
       });
 
@@ -477,8 +484,19 @@ export default function EventTimeline() {
                   }
 
                   return (
-                    <tr key={index} className="hover:bg-blue-600/5 transition-colors">
-                      <td className="p-2.5 sm:p-4 border-r border-gray-800/85 font-medium text-gray-300 whitespace-nowrap">{row.dateStr}</td>
+                    <tr 
+                      key={index} 
+                      className={`transition-colors ${
+                        row.isToday 
+                          ? 'bg-blue-600/20 ring-2 ring-blue-500/80 relative z-10' 
+                          : 'hover:bg-blue-600/5'
+                      }`}
+                    >
+                      <td className="p-2.5 sm:p-4 border-r border-gray-800/85 font-medium text-gray-300 whitespace-nowrap">
+                        <span className={row.isToday ? 'text-blue-200 font-bold underline decoration-blue-400 underline-offset-4' : ''}>
+                          {row.dateStr}
+                        </span>
+                      </td>
                       
                       {phaseSpan > 0 ? (
                         <td className="p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap" rowSpan={phaseSpan}>
