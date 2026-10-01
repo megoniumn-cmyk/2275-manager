@@ -44,6 +44,20 @@ const STATUS_OPTIONS = [
   'キャンセル',
 ];
 
+// [数字] を抽出して数値としてソートするヘルパー関数
+const sortTransferOptions = (options: { label: string }[]) => {
+  return [...options].sort((a, b) => {
+    const matchA = a.label.match(/\[(\d+)\]/);
+    const matchB = b.label.match(/\[(\d+)\]/);
+    const numA = matchA ? parseInt(matchA[1], 10) : Infinity;
+    const numB = matchB ? parseInt(matchB[1], 10) : Infinity;
+    if (numA !== numB) {
+      return numA - numB;
+    }
+    return a.label.localeCompare(b.label);
+  });
+};
+
 const getStatusBadgeStyle = (status: string) => {
   switch (status) {
     case '問い合わせ':
@@ -522,8 +536,13 @@ export default function TransferManagementPage() {
 
   const fetchTransferOptions = async () => {
     const { data, error } = await supabase.from('transfer_options').select('label');
-    if (error) console.error('Error fetching options:', error);
-    else setTransferOptions(data || []);
+    if (error) {
+      console.error('Error fetching options:', error);
+    } else {
+      // 取得したオプションを [数字] の昇順にソートしてセット
+      const sorted = sortTransferOptions(data || []);
+      setTransferOptions(sorted);
+    }
   };
 
   const fetchAllianceList = async () => {
