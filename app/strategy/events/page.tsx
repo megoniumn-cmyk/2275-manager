@@ -45,7 +45,6 @@ const PHASE_DEFINITIONS: { name: string; weeks: number }[] = [
   { name: 'FC10Gen18', weeks: 6 * 2 },
 ];
 
-// SvS（オレンジ系）、霜竜（赤系）と絶対に被らないグリーン・パープル・ピンク・ライム系で完全に差別化
 const getPhaseBadgeStyle = (phase: string) => {
   switch (phase) {
     case 'Gen1': return 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60';
@@ -388,37 +387,37 @@ export default function EventTimeline() {
   const frostDragonSpans = calculateFrostSpans(timelineData);
 
   return (
-    <div className="min-h-screen bg-[#070b14] text-gray-100 p-6">
+    <div className="min-h-screen bg-[#070b14] text-gray-100 p-3 sm:p-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6 text-white tracking-wide border-b border-gray-800 pb-3">
+        <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-white tracking-wide border-b border-gray-800 pb-3">
           サーバー・イベントスケジュール
         </h1>
         
-        <div className="mb-6 bg-[#0f172a] p-4 rounded-xl border border-gray-800/80 flex items-center gap-4 shadow-xl">
-          <label className="font-medium text-gray-300">サーバー番号入力:</label>
+        <div className="mb-6 bg-[#0f172a] p-3 sm:p-4 rounded-xl border border-gray-800/80 flex flex-col sm:flex-row items-start sm:items-center gap-3 shadow-xl">
+          <label className="font-medium text-gray-300 text-sm">サーバー番号入力:</label>
           <input
             type="number"
             value={serverNumber}
             onChange={(e) => setServerNumber(Number(e.target.value))}
-            className="bg-[#070b14] border border-gray-700 text-white px-4 py-2 rounded-lg w-36 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-[#070b14] border border-gray-700 text-white px-3 py-1.5 rounded-lg w-full sm:w-36 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="例: 2275"
           />
-          <span className="text-gray-400 text-sm">※入力したサーバーの所属グループと対戦エリアを自動判定します</span>
+          <span className="text-gray-400 text-xs">※入力したサーバーの所属グループと対戦エリアを自動判定します</span>
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-400">読み込み中...</div>
+          <div className="text-center py-12 text-gray-400 text-sm">読み込み中...</div>
         ) : (
           <div className="overflow-x-auto border border-gray-800/80 rounded-xl shadow-2xl bg-[#0f172a]">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-[#0b1329] text-gray-400 uppercase text-xs tracking-wider border-b border-gray-800">
+            <table className="w-full border-collapse text-left text-xs sm:text-sm">
+              <thead className="bg-[#0b1329] text-gray-400 uppercase tracking-wider border-b border-gray-800">
                 <tr>
-                  <th className="p-4 border-r border-gray-800/85 font-semibold">Date</th>
-                  <th className="p-4 border-r border-gray-800/85 font-semibold">サーバー進行度</th>
-                  <th className="p-4 border-r border-gray-800/85 font-semibold">SvS戦闘日</th>
-                  <th className="p-4 border-r border-gray-800/85 font-semibold">霜竜の覇者</th>
-                  <th className="p-4 border-r border-gray-800/85 font-semibold">雪原兵器リーグ</th>
-                  <th className="p-4 font-semibold">王国移民・合併</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">Date</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">サーバー進行度</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">SvS戦闘日</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">霜竜の覇者</th>
+                  <th className="p-2.5 sm:p-4 border-r border-gray-800/85 font-semibold whitespace-nowrap">雪原兵器リーグ</th>
+                  <th className="p-2.5 sm:p-4 font-semibold whitespace-nowrap">王国移民・合併</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
@@ -429,13 +428,13 @@ export default function EventTimeline() {
                   let immigrationBadge = null;
                   if (row.immigration.startsWith('移民')) {
                     immigrationBadge = (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
+                      <span className="inline-block px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 whitespace-nowrap">
                         {row.immigration}
                       </span>
                     );
                   } else if (row.immigration.startsWith('合併')) {
                     immigrationBadge = (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-purple-950/60 text-purple-300 border border-purple-800/50">
+                      <span className="inline-block px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-purple-950/60 text-purple-300 border border-purple-800/50 whitespace-nowrap">
                         {row.immigration}
                       </span>
                     );
@@ -444,13 +443,13 @@ export default function EventTimeline() {
                   let frostBadge = null;
                   if (row.frostDragon.startsWith('戦闘日')) {
                     frostBadge = (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-950/80 text-rose-200 border border-rose-700/70 shadow-sm">
+                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-semibold bg-rose-950/80 text-rose-200 border border-rose-700/70 shadow-sm whitespace-nowrap">
                         {row.frostDragon}
                       </span>
                     );
                   } else if (row.frostDragon.includes('任命中')) {
                     frostBadge = (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-rose-950/40 text-rose-300/90 border border-rose-900/50">
+                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-rose-950/40 text-rose-300/90 border border-rose-900/50 whitespace-nowrap">
                         {row.frostDragon}
                       </span>
                     );
@@ -459,19 +458,19 @@ export default function EventTimeline() {
                   let snowBadge = null;
                   if (row.snowLeague.startsWith('エントリー')) {
                     snowBadge = (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-light bg-slate-900/60 text-slate-400 border border-slate-700/40">
+                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-light bg-slate-900/60 text-slate-400 border border-slate-700/40 whitespace-nowrap">
                         {row.snowLeague}
                       </span>
                     );
                   } else if (row.snowLeague.startsWith('トーナメント')) {
                     snowBadge = (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-cyan-950/70 text-cyan-300 border-cyan-800/60">
+                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-cyan-950/70 text-cyan-300 border-cyan-800/60 whitespace-nowrap">
                         {row.snowLeague}
                       </span>
                     );
                   } else if (row.snowLeague.startsWith('争覇戦')) {
                     snowBadge = (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-amber-600 text-white border border-amber-400 shadow-md">
+                      <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-bold bg-amber-600 text-white border border-amber-400 shadow-md whitespace-nowrap">
                         {row.snowLeague}
                       </span>
                     );
@@ -479,36 +478,36 @@ export default function EventTimeline() {
 
                   return (
                     <tr key={index} className="hover:bg-blue-600/5 transition-colors">
-                      <td className="p-4 border-r border-gray-800/85 font-medium text-gray-300">{row.dateStr}</td>
+                      <td className="p-2.5 sm:p-4 border-r border-gray-800/85 font-medium text-gray-300 whitespace-nowrap">{row.dateStr}</td>
                       
                       {phaseSpan > 0 ? (
-                        <td className="p-4 border-r border-gray-800/85 align-middle" rowSpan={phaseSpan}>
+                        <td className="p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap" rowSpan={phaseSpan}>
                           {row.serverPhase ? (
-                            <span className={`inline-block px-3 py-1 rounded-lg text-xs font-semibold border ${getPhaseBadgeStyle(row.serverPhase)} shadow-sm`}>
+                            <span className={`inline-block px-2.5 py-1 sm:px-3 sm:py-1 rounded-lg text-[11px] sm:text-xs font-semibold border ${getPhaseBadgeStyle(row.serverPhase)} shadow-sm whitespace-nowrap`}>
                               {row.serverPhase}
                             </span>
                           ) : ''}
                         </td>
                       ) : null}
 
-                      <td className="p-4 border-r border-gray-800/85 text-gray-300">
+                      <td className="p-2.5 sm:p-4 border-r border-gray-800/85 text-gray-300 whitespace-nowrap">
                         {row.svsStatus && (
-                          <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-amber-950/60 text-amber-300 border border-amber-800/50">
+                          <span className="inline-block px-2 py-1 sm:px-2.5 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium bg-amber-950/60 text-amber-300 border border-amber-800/50 whitespace-nowrap">
                             {row.svsStatus}
                           </span>
                         )}
                       </td>
 
                       {frostSpan > 0 ? (
-                        <td className="p-4 border-r border-gray-800/85 align-middle" rowSpan={frostSpan}>
+                        <td className="p-2.5 sm:p-4 border-r border-gray-800/85 align-middle whitespace-nowrap" rowSpan={frostSpan}>
                           {frostBadge}
                         </td>
                       ) : null}
 
-                      <td className="p-4 border-r border-gray-800/85 text-gray-300">
+                      <td className="p-2.5 sm:p-4 border-r border-gray-800/85 text-gray-300 whitespace-nowrap">
                         {snowBadge}
                       </td>
-                      <td className="p-4 text-gray-300">
+                      <td className="p-2.5 sm:p-4 text-gray-300 whitespace-nowrap">
                         {immigrationBadge}
                       </td>
                     </tr>
