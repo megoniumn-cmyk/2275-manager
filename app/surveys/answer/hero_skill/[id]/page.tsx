@@ -17,6 +17,8 @@ type SurveyMaster = {
 
 type MemberData = {
   game_id: string;
+  name?: string;
+  main_game_id?: string | null;
   [key: string]: any;
 };
 
@@ -43,7 +45,12 @@ export default function HeroSkillSurveyAnswerPage() {
   const [dynamicTranslations, setDynamicTranslations] = useState<Record<string, string>>({});
 
   const [survey, setSurvey] = useState<SurveyMaster | null>(null);
-  const [member, setMember] = useState<MemberData | null>(null);
+  
+  // アカウント管理用ステート
+  const [accounts, setAccounts] = useState<MemberData[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [currentMember, setCurrentMember] = useState<MemberData | null>(null);
+
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   
@@ -54,7 +61,7 @@ export default function HeroSkillSurveyAnswerPage() {
   const [selectedHeroes, setSelectedHeroes] = useState<string[]>([]);
   const [savedResponse, setSavedResponse] = useState<any>(null);
 
-  // 1. 初期ロード時（言語・辞書データ・アンケートデータの取得）
+  // 1. 初期ロード時（言語・辞書データ・アンケートデータ・紐づくアカウント一覧の取得）
   useEffect(() => {
     const savedLang = localStorage.getItem('preferred_lang') as 'ja' | 'en';
     if (savedLang) setLang(savedLang);
@@ -81,46 +88,36 @@ export default function HeroSkillSurveyAnswerPage() {
           throw new Error('ログイン中のゲームIDが見つかりません。再度ログインしてください。');
         }
 
-        // members テーブルから該当ユーザーのデータを取得
-        const { data: memberData } = await supabase
+        // メインアカウント情報の取得
+        const { data: mainMemberData } = await supabase
           .from('members')
           .select('*')
           .eq('game_id', currentLoginGameId)
           .single();
 
-        if (memberData) {
-          setMember(memberData);
-        } else {
-          setMember({ game_id: currentLoginGameId });
-        }
-
-        // 既存回答の取得
-        const { data: responseData } = await supabase
-          .from('survey_responses_hero_skill')
+        // 紐づくサブアカウント（main_game_id がログインIDのもの）を取得
+        const { data: subMembersData } = await supabase
+          .from('members')
           .select('*')
-          .eq('survey_id', surveyId)
-          .eq('game_id', currentLoginGameId)
-          .single();
+          .eq('main_game_id', currentLoginGameId);
 
-        if (responseData) {
-          setHasResponded(true);
-          setSavedResponse(responseData);
-
-          if (responseData.selected_heroes && Array.isArray(responseData.selected_heroes)) {
-            setSelectedHeroes(responseData.selected_heroes);
-          }
+        const allAccs: MemberData[] = [];
+        if (mainMemberData) {
+          allAccs.push(mainMemberData);
         } else {
-          if (memberData) {
-            const initialSelected: string[] = [];
-            HERO_CONFIG.forEach((hero) => {
-              const val = memberData[hero.column];
-              if (val === true || val === 'true') {
-                initialSelected.push(hero.name);
-              }
-            });
-            setSelectedHeroes(initialSelected);
-          }
+          allAccs.push({ game_id: currentLoginGameId });
         }
+
+        if (subMembersData && subMembersData.length > 0) {
+          subMembersData.forEach(sub => {
+            if (!allAccs.some(a => a.game_id === sub.game_id)) {
+              allAccs.push(sub);
+            }
+          });
+        }
+
+        setAccounts(allAccs);
+        setSelectedGameId(currentLoginGameId);
 
       } catch (error: any) {
         console.error(error);
@@ -132,7 +129,57 @@ export default function HeroSkillSurveyAnswerPage() {
     initData();
   }, [surveyId]);
 
-  // 2. 一括翻訳処理（自動翻訳の補完）
+  // 2. 選択されたゲームID（アカウント）が変更されたときのデータ切り替え処理
+  useEffect(() => {
+    if (!selectedGameId || !surveyId) return;
+
+    async function fetchAccountData() {
+      setLoading(true);
+      try {
+        const targetMember = accounts.find(a => a.game_id === selectedGameId) || { game_id: selectedGameId };
+        setCurrentMember(targetMember);
+
+        // 該当アカウントの既存回答の取得
+        const { data: responseData } = await supabase
+          .from('survey_responses_hero_skill')
+          .select('*')
+          .eq('survey_id', surveyId)
+          .eq('game_id', selectedGameId)
+          .single();
+
+        if (responseData) {
+          setHasResponded(true);
+          setSavedResponse(responseData);
+
+          if (responseData.selected_heroes && Array.isArray(responseData.selected_heroes)) {
+            setSelectedHeroes(responseData.selected_heroes);
+          }
+        } else {
+          setHasResponded(false);
+          setSavedResponse(null);
+
+          // 未回答の場合はメンバー情報の英雄フラグを初期値として反映
+          const initialSelected: string[] = [];
+          HERO_CONFIG.forEach((hero) => {
+            const val = targetMember[hero.column];
+            if (val === true || val === 'true') {
+              initialSelected.push(hero.name);
+            }
+          });
+          setSelectedHeroes(initialSelected);
+        }
+        setIsEditing(false);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchAccountData();
+  }, [selectedGameId, surveyId, accounts]);
+
+  // 3. 一括翻訳処理（自動翻訳の補完）
   useEffect(() => {
     if (lang === 'ja') return;
 
@@ -151,7 +198,7 @@ export default function HeroSkillSurveyAnswerPage() {
       "回答ゲームID",
       "遠征第1スキルがLv5の英雄",
       "選択なし（該当なし）",
-      "回答中のゲームID: ",
+      "回答中のアカウント / ゲームID: ",
       "キャンセルして結果に戻る",
       "遠征第1スキルがLv5の英雄を選択してください（複数選択可）",
       "*回答必須",
@@ -160,7 +207,8 @@ export default function HeroSkillSurveyAnswerPage() {
       "回答を送信する",
       "受付期限が終了しているため、回答・修正はできません。",
       "ログイン中のゲームIDが取得できませんでした。",
-      "メンバー情報の更新に失敗しました: "
+      "メンバー情報の更新に失敗しました: ",
+      "回答するキャラクター（アカウント）切替"
     ];
 
     const surveyTitle = survey?.title ? [survey.title] : [];
@@ -238,8 +286,8 @@ export default function HeroSkillSurveyAnswerPage() {
       return;
     }
 
-    if (!member?.game_id) {
-      alert(lang === 'en' ? 'Logged-in game ID could not be retrieved.' : 'ログイン中のゲームIDが取得できませんでした。');
+    if (!selectedGameId) {
+      alert(lang === 'en' ? 'Game ID could not be retrieved.' : 'ゲームIDが取得できませんでした。');
       return;
     }
 
@@ -247,7 +295,7 @@ export default function HeroSkillSurveyAnswerPage() {
     try {
       const surveyResponsePayload = {
         survey_id: surveyId,
-        game_id: member.game_id,
+        game_id: selectedGameId,
         selected_heroes: selectedHeroes,
       };
 
@@ -268,7 +316,7 @@ export default function HeroSkillSurveyAnswerPage() {
       const { error: memberUpdateError } = await supabase
         .from('members')
         .update(memberUpdatePayload)
-        .eq('game_id', member.game_id);
+        .eq('game_id', selectedGameId);
 
       if (memberUpdateError) {
         console.error('membersテーブルの更新に失敗しました:', memberUpdateError);
@@ -296,7 +344,6 @@ export default function HeroSkillSurveyAnswerPage() {
     if (lang === 'en') {
       if (dict[text]) return dict[text];
 
-      // 英雄名の個別フォールバック
       const foundHero = HERO_CONFIG.find(h => h.name === text);
       if (foundHero) return foundHero.enName;
 
@@ -312,19 +359,20 @@ export default function HeroSkillSurveyAnswerPage() {
       if (text === "回答ゲームID") return "Game ID";
       if (text === "遠征第1スキルがLv5の英雄") return "Heroes with Lv5 Expedition 1st Skill";
       if (text === "選択なし（該当なし）") return "None selected";
-      if (text === "回答中のゲームID: ") return "Responding Game ID: ";
+      if (text === "回答中のアカウント / ゲームID: ") return "Responding Account / Game ID: ";
       if (text === "キャンセルして結果に戻る") return "Cancel and Return";
       if (text === "遠征第1スキルがLv5の英雄を選択してください（複数選択可）") return "Select heroes with Lv5 Expedition 1st skill (multiple choices allowed)";
       if (text === "*回答必須") return "*Required";
       if (text === "保存中...") return "Saving...";
       if (text === "回答を更新する") return "Update Response";
       if (text === "回答を送信する") return "Submit Response";
+      if (text === "回答するキャラクター（アカウント）切替") return "Switch Character / Account";
     }
 
     return dynamicTranslations[text] || text;
   };
 
-  if (loading) {
+  if (loading && accounts.length === 0) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
         <p className="text-sm text-slate-400">{t("読み込み中...")}</p>
@@ -340,7 +388,6 @@ export default function HeroSkillSurveyAnswerPage() {
     );
   }
 
-  // 英語表示のときはUTC時刻に変換してフォーマットする
   const formatDeadline = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
@@ -418,6 +465,28 @@ export default function HeroSkillSurveyAnswerPage() {
           <h1 className="text-2xl font-bold text-white">{t(survey.title) || t('英雄スキルLv5アンケート')}</h1>
         </div>
 
+        {/* アカウント（メイン・サブ）切り替えバー */}
+        {accounts.length > 0 && (
+          <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-4 shadow-xl flex items-center justify-between flex-wrap gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-300">
+                {t("回答するキャラクター（アカウント）切替")}
+              </label>
+            </div>
+            <select
+              value={selectedGameId}
+              onChange={(e) => setSelectedGameId(e.target.value)}
+              className="bg-[#0b0f19] border border-slate-700 text-slate-100 rounded-xl px-4 py-2 text-xs font-mono focus:outline-none focus:border-cyan-500 cursor-pointer"
+            >
+              {accounts.map((acc) => (
+                <option key={acc.game_id} value={acc.game_id}>
+                  {acc.name ? `${acc.name} (${acc.game_id})` : acc.game_id} {acc.main_game_id ? '[Sub]' : '[Main]'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {hasResponded && !isEditing ? (
           <div className="space-y-6">
             <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-xl p-5 shadow-xl flex items-center justify-between flex-wrap gap-4">
@@ -449,7 +518,9 @@ export default function HeroSkillSurveyAnswerPage() {
               <div className="space-y-4 text-xs">
                 <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-slate-400">{t("回答ゲームID")}</span>
-                  <p className="font-mono font-bold text-cyan-400 text-sm">{member?.game_id}</p>
+                  <p className="font-mono font-bold text-cyan-400 text-sm">
+                    {currentMember?.name ? `${currentMember.name} - ` : ''}{currentMember?.game_id}
+                  </p>
                 </div>
 
                 <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-2">
@@ -475,8 +546,10 @@ export default function HeroSkillSurveyAnswerPage() {
               
               <div className="flex items-center justify-between bg-[#0b0f19] border border-slate-800 p-4 rounded-xl text-xs">
                 <div>
-                  <span className="text-slate-400">{t("回答中のゲームID: ")}</span>
-                  <span className="font-mono font-bold text-cyan-400 text-sm">{member?.game_id}</span>
+                  <span className="text-slate-400">{t("回答中のアカウント / ゲームID: ")}</span>
+                  <span className="font-mono font-bold text-cyan-400 text-sm">
+                    {currentMember?.name ? `${currentMember.name} (${currentMember?.game_id})` : currentMember?.game_id}
+                  </span>
                 </div>
                 {hasResponded && (
                   <button

@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
-const getComingSunday = () => {
+const getComingSaturday = () => {
   const d = new Date();
   const day = d.getDay();
   const diff = day === 0 ? 0 : 7 - day;
@@ -13,7 +13,7 @@ const getComingSunday = () => {
 };
 
 export default function Header({ selectedDate, setSelectedDate, onMemberRegistered, fetchEvents, events = [] }) {
-  const [newDate, setNewDate] = useState(getComingSunday());
+  const [newDate, setNewDate] = useState(getComingSaturday());
   const [loading, setLoading] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -37,7 +37,7 @@ export default function Header({ selectedDate, setSelectedDate, onMemberRegister
   };
 
   const handleAddEventDate = async () => {
-    const targetDate = newDate || getComingSunday();
+    const targetDate = newDate || getComingSaturday();
 
     // order_index の最大値を取得
     const { data: maxData, error: maxError } = await supabase
@@ -62,7 +62,7 @@ export default function Header({ selectedDate, setSelectedDate, onMemberRegister
 
     if (!error) {
       alert('イベント日を登録しました！');
-      setNewDate(getComingSunday());
+      setNewDate(getComingSaturday());
       if (fetchEvents) fetchEvents();
     } else {
       alert('登録エラー: ' + error.message);

@@ -22,6 +22,8 @@ type MemberData = {
   shield_soldier?: string;
   spear_soldier?: string;
   bow_soldier?: string;
+  main_game_id?: string | null;
+  name?: string;
 };
 
 export default function SurveyAnswerPage() {
@@ -34,6 +36,9 @@ export default function SurveyAnswerPage() {
 
   const [survey, setSurvey] = useState<SurveyMaster | null>(null);
   const [member, setMember] = useState<MemberData | null>(null);
+  const [accounts, setAccounts] = useState<MemberData[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   
@@ -62,7 +67,7 @@ export default function SurveyAnswerPage() {
 
   const [savedResponse, setSavedResponse] = useState<any>(null);
 
-  // 1. 初期ロード（言語設定・辞書データ・アンケート＆回答データ取得）
+  // 1. 初期ロード（言語設定・辞書データ・アンケート取得・アカウント一覧取得）
   useEffect(() => {
     const savedLang = localStorage.getItem('preferred_lang') as 'ja' | 'en';
     if (savedLang) setLang(savedLang);
@@ -71,7 +76,7 @@ export default function SurveyAnswerPage() {
       setDict(loadedDict);
     });
 
-    async function initData() {
+    async function initMaster() {
       if (!surveyId) return;
 
       try {
@@ -89,18 +94,66 @@ export default function SurveyAnswerPage() {
           throw new Error('ログイン中のゲームIDが見つかりません。再度ログインしてください。');
         }
 
-        const { data: memberData } = await supabase
+        // メインアカウント情報の取得
+        const { data: mainMember, error: mainError } = await supabase
           .from('members')
           .select('*')
           .eq('game_id', currentLoginGameId)
           .single();
 
+        if (mainError) throw mainError;
+
+        // main_game_idが一致するサブアカウント一覧を取得
+        const { data: subMembers, error: subError } = await supabase
+          .from('members')
+          .select('*')
+          .eq('main_game_id', currentLoginGameId);
+
+        if (subError) throw subError;
+
+        const allAccounts = [mainMember, ...(subMembers || [])];
+        setAccounts(allAccounts);
+        setSelectedGameId(currentLoginGameId);
+
+      } catch (error: any) {
+        console.error(error);
+        alert(error.message || 'データの取得に失敗しました。');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    initMaster();
+  }, [surveyId]);
+
+  // 2. 選択されたアカウント（selectedGameId）が変わるたびにメンバー情報と回答状況を非同期で再取得・反映
+  useEffect(() => {
+    if (!selectedGameId || !surveyId) return;
+
+    async function fetchAccountData() {
+      try {
+        setLoading(true);
+
+        // メンバー情報の取得
+        const { data: memberData } = await supabase
+          .from('members')
+          .select('*')
+          .eq('game_id', selectedGameId)
+          .single();
+
         if (memberData) {
           setMember(memberData);
           if (memberData.fc_level) setFcLevel(memberData.fc_level);
+          else setFcLevel('FC10');
+
           if (memberData.shield_soldier) setShieldSoldier(memberData.shield_soldier);
+          else setShieldSoldier('FC10T11');
+
           if (memberData.spear_soldier) setSpearSoldier(memberData.spear_soldier);
+          else setSpearSoldier('FC10T11');
+
           if (memberData.bow_soldier) setBowSoldier(memberData.bow_soldier);
+          else setBowSoldier('FC10T11');
           
           if (memberData.current_power) {
             const match = memberData.current_power.match(/^([0-9.]+)([BM]?)$/i);
@@ -110,16 +163,24 @@ export default function SurveyAnswerPage() {
             } else {
               setPowerNum(memberData.current_power);
             }
+          } else {
+            setPowerNum('');
           }
         } else {
-          setMember({ game_id: currentLoginGameId });
+          setMember({ game_id: selectedGameId });
+          setFcLevel('FC10');
+          setPowerNum('');
+          setShieldSoldier('FC10T11');
+          setSpearSoldier('FC10T11');
+          setBowSoldier('FC10T11');
         }
 
+        // 該当アカウントの既存の回答状況（survey_responses_svs）を取得
         const { data: responseData } = await supabase
           .from('survey_responses_svs')
           .select('*')
           .eq('survey_id', surveyId)
-          .eq('game_id', currentLoginGameId)
+          .eq('game_id', selectedGameId)
           .single();
 
         if (responseData) {
@@ -127,15 +188,17 @@ export default function SurveyAnswerPage() {
           setSavedResponse(responseData);
 
           if (responseData.participation_type) setParticipationType(responseData.participation_type);
+          else setParticipationType('1');
+
           setSlot20(!!responseData.slot_20);
           setSlot21(!!responseData.slot_21);
           setSlot22(!!responseData.slot_22);
           setSlot23(!!responseData.slot_23);
           setSlot24(!!responseData.slot_24);
           setSlot25(!!responseData.slot_25);
-          if (responseData.time_slot_memo) setTimeSlotMemo(responseData.time_slot_memo);
-          if (responseData.vc_status) setVcStatus(responseData.vc_status);
-          if (responseData.vc_memo) setVcMemo(responseData.vc_memo);
+          setTimeSlotMemo(responseData.time_slot_memo || '');
+          setVcStatus(responseData.vc_status || '1');
+          setVcMemo(responseData.vc_memo || '');
 
           if (responseData.snapshot_fc_level) setFcLevel(responseData.snapshot_fc_level);
           if (responseData.snapshot_power) {
@@ -150,20 +213,32 @@ export default function SurveyAnswerPage() {
           if (responseData.snapshot_shield_soldier) setShieldSoldier(responseData.snapshot_shield_soldier);
           if (responseData.snapshot_spear_soldier) setSpearSoldier(responseData.snapshot_spear_soldier);
           if (responseData.snapshot_bow_soldier) setBowSoldier(responseData.snapshot_bow_soldier);
+        } else {
+          setHasResponded(false);
+          setSavedResponse(null);
+          setParticipationType('1');
+          setSlot20(false);
+          setSlot21(false);
+          setSlot22(false);
+          setSlot23(false);
+          setSlot24(false);
+          setSlot25(false);
+          setTimeSlotMemo('');
+          setVcStatus('1');
+          setVcMemo('');
         }
 
       } catch (error: any) {
         console.error(error);
-        alert(error.message || 'データの取得に失敗しました。');
       } finally {
         setLoading(false);
       }
     }
 
-    initData();
-  }, [surveyId]);
+    fetchAccountData();
+  }, [selectedGameId, surveyId]);
 
-  // 2. 動的翻訳の補完処理
+  // 3. 動的翻訳の補完処理
   useEffect(() => {
     if (lang === 'ja') return;
 
@@ -219,7 +294,8 @@ export default function SurveyAnswerPage() {
       "回答を送信する",
       "受付期限が終了しているため、回答・修正はできません。",
       "ログイン中のゲームIDが取得できませんでした。",
-      "「参加可能時間を選択してください」の項目で、少なくとも1つの時間帯を選択してください。"
+      "「参加可能時間を選択してください」の項目で、少なくとも1つの時間帯を選択してください。",
+      "回答キャラクター切替"
     ];
 
     const surveyTitle = survey?.title ? [survey.title] : [];
@@ -417,7 +493,6 @@ export default function SurveyAnswerPage() {
     if (lang === 'en') {
       if (dict[text]) return dict[text];
 
-      // アンケートタイトルの特殊変換・フォールバック対応
       if (text.includes("参加アンケート")) {
         return text.replace("参加アンケート", " SvS Participation Survey");
       }
@@ -471,12 +546,13 @@ export default function SurveyAnswerPage() {
       if (text === "保存中...") return "Saving...";
       if (text === "回答を更新する") return "Update Response";
       if (text === "回答を送信する") return "Submit Response";
+      if (text === "回答キャラクター切替") return "Switch Character";
     }
 
     return dynamicTranslations[text] || text;
   };
 
-  if (loading) {
+  if (loading && !survey) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
         <p className="text-sm text-slate-400">{t("読み込み中...")}</p>
@@ -530,7 +606,6 @@ export default function SurveyAnswerPage() {
     }
   };
 
-  // 時間帯スロットのラベル定義（日本語・英語切り替え対応）
   const timeSlotOptions = [
     { label: lang === 'en' ? '11:00 range' : '20:00台', val: slot20, set: setSlot20 },
     { label: lang === 'en' ? '12:00 range' : '21:00台', val: slot21, set: setSlot21 },
@@ -539,11 +614,6 @@ export default function SurveyAnswerPage() {
     { label: lang === 'en' ? '15:00 range' : '24:00台', val: slot24, set: setSlot24 },
     { label: lang === 'en' ? '16:00 range' : '25:00台', val: slot25, set: setSlot25 },
   ];
-
-  const allSoldiersMax = 
-    member?.shield_soldier === 'FC10T11' && 
-    member?.spear_soldier === 'FC10T11' && 
-    member?.bow_soldier === 'FC10T11';
 
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col flex-1 w-full">
@@ -608,7 +678,31 @@ export default function SurveyAnswerPage() {
           <h1 className="text-2xl font-bold text-white">{t(survey.title)}</h1>
         </div>
 
-        {hasResponded && !isEditing ? (
+        {/* アカウント切り替えUI（回答フォーム内および確認画面共通で配置） */}
+        {accounts.length > 0 && (
+          <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-4 shadow-xl flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-300">{t("回答キャラクター切替")}:</span>
+            </div>
+            <select
+              value={selectedGameId}
+              onChange={(e) => setSelectedGameId(e.target.value)}
+              className="bg-[#0b0f19] border border-slate-700 text-cyan-400 text-xs rounded-lg px-3 py-2 font-mono font-bold focus:outline-none focus:border-cyan-500 cursor-pointer"
+            >
+              {accounts.map((acc) => (
+                <option key={acc.game_id} value={acc.game_id}>
+                  {acc.game_id} {acc.name ? `(${acc.name})` : ''} {acc.game_id === accounts[0]?.game_id ? '[Main]' : '[Sub]'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-10 text-center text-slate-400 text-xs">
+            {t("読み込み中...")}
+          </div>
+        ) : hasResponded && !isEditing ? (
           <div className="space-y-6">
             <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-xl p-5 shadow-xl flex items-center justify-between flex-wrap gap-4">
               <div className="space-y-1">
@@ -791,7 +885,7 @@ export default function SurveyAnswerPage() {
                       value={timeSlotMemo}
                       onChange={(e) => setTimeSlotMemo(e.target.value)}
                       placeholder={t("例: 12時半頃から入れます")}
-                      className="w-full bg-[#151c2c] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 disabled:opacity-60"
+                      className="w-full bg-[#151c2c] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                     />
                   </div>
                 </div>
@@ -799,7 +893,7 @@ export default function SurveyAnswerPage() {
 
               {participationType !== '4' && (
                 <>
-                  <div className="space-y-3 pt-4 border-t border-slate-800">
+                  <div className="bg-[#0b0f19] border border-slate-800 p-5 rounded-xl space-y-4">
                     <label className="block text-xs font-semibold text-slate-200">
                       {t("上で回答した参加予定時間、全時間でVC参加可能ですか。(聞き専含む)")} <span className="text-rose-400">{t("*回答必須")}</span>
                     </label>
@@ -819,7 +913,7 @@ export default function SurveyAnswerPage() {
                           } ${
                             vcStatus === item.id
                               ? 'bg-cyan-600 border-cyan-500 text-white'
-                              : 'bg-[#0b0f19] border-slate-700 text-slate-300 hover:border-slate-500'
+                              : 'bg-[#151c2c] border-slate-700 text-slate-300 hover:border-slate-500'
                           }`}
                         >
                           {item.label}
@@ -828,8 +922,8 @@ export default function SurveyAnswerPage() {
                     </div>
 
                     {vcStatus === '2' && (
-                      <div className="pt-2">
-                        <label className="block text-xs font-semibold text-cyan-300 mb-1">
+                      <div className="mt-3">
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
                           {t("参加可能時間を入力してください")} <span className="text-rose-400">{t("*回答必須")}</span>
                         </label>
                         <input
@@ -838,185 +932,136 @@ export default function SurveyAnswerPage() {
                           value={vcMemo}
                           onChange={(e) => setVcMemo(e.target.value)}
                           placeholder={t("例: 12時〜14時のみ参加可能")}
-                          className="w-full bg-[#0b0f19] border border-cyan-900/50 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 disabled:opacity-60"
-                          required
+                          className="w-full bg-[#151c2c] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
                         />
                       </div>
                     )}
                   </div>
 
                   {member?.fc_level !== 'FC10' && (
-                    <div className="space-y-2 pt-4 border-t border-slate-800">
+                    <div className="bg-[#0b0f19] border border-slate-800 p-5 rounded-xl space-y-3">
                       <label className="block text-xs font-semibold text-slate-200">
-                        {t("溶鉱炉Lvを回答してください。")} <span className="text-rose-400">{t("*回答必須")}</span>
-                        <span className="block text-[11px] text-slate-400 font-normal mt-0.5">
-                        {t("過去の回答でFC10を選択している場合、設問は表示されません。")}
-                      </span>
+                        {t("溶鉱炉Lvを回答してください。")}
                       </label>
-                      <div className="relative">
-                        <select
-                          disabled={isExpired}
-                          value={fcLevel}
-                          onChange={(e) => setFcLevel(e.target.value)}
-                          className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500 appearance-none disabled:opacity-60"
-                          required
-                        >
-                          <option value="FC10">FC10</option>
-                          <option value="FC9">FC9</option>
-                          <option value="FC8">FC8</option>
-                          <option value="FC7">FC7</option>
-                          <option value="FC6以下">{t("FC6以下")}</option>
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        {t("過去の回答でFC10を選択している場合、設問は表示されません。")}
+                      </p>
+                      <select
+                        disabled={isExpired}
+                        value={fcLevel}
+                        onChange={(e) => setFcLevel(e.target.value)}
+                        className="w-full bg-[#151c2c] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      >
+                        {['Lv30', 'FC1', 'FC2', 'FC3', 'FC4', 'FC5', 'FC6', 'FC7', 'FC8', 'FC9', 'FC10'].map((lvl) => (
+                          <option key={lvl} value={lvl}>{lvl}</option>
+                        ))}
+                      </select>
                     </div>
                   )}
 
-                  <div className="space-y-2 pt-4 border-t border-slate-800">
+                  <div className="bg-[#0b0f19] border border-slate-800 p-5 rounded-xl space-y-3">
                     <label className="block text-xs font-semibold text-slate-200">
                       {t("総力を入力してください。")} <span className="text-rose-400">{t("*回答必須")}</span>
                     </label>
-                    <div className="flex gap-3">
+                    <div className="flex items-center gap-2">
                       <input
                         type="text"
                         disabled={isExpired}
                         value={powerNum}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9.]/g, '');
-                          setPowerNum(val);
-                        }}
+                        onChange={(e) => setPowerNum(e.target.value)}
                         placeholder={t("例: 1.1")}
-                        className="flex-1 bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono disabled:opacity-60"
-                        required
+                        className="flex-1 bg-[#151c2c] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
                       />
-                      <div className="relative w-36">
-                        <select
-                          disabled={isExpired}
-                          value={powerUnit}
-                          onChange={(e) => setPowerUnit(e.target.value)}
-                          className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold appearance-none disabled:opacity-60"
-                        >
-                          <option value="B">B</option>
-                          <option value="M">M</option>
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
+                      <div className="flex bg-[#151c2c] border border-slate-700 rounded-lg p-0.5">
+                        {['B', 'M'].map((unit) => (
+                          <button
+                            type="button"
+                            disabled={isExpired}
+                            key={unit}
+                            onClick={() => setPowerUnit(unit)}
+                            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                              powerUnit === unit ? 'bg-cyan-600 text-white' : 'text-slate-400'
+                            }`}
+                          >
+                            {unit}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
 
-                  {!allSoldiersMax && (
-                    <div className="space-y-4 pt-4 border-t border-slate-800">
-                      <p className="text-xs font-semibold text-slate-200">
-                        {t("兵士Lvを回答してください（SvS当日までに解放する場合は解放予定後で回答）")} <span className="text-rose-400">{t("*回答必須")}</span>
-                        <span className="block text-[11px] text-slate-400 font-normal mt-0.5">
+                  {member?.shield_soldier !== 'FC10T11' && (
+                    <div className="bg-[#0b0f19] border border-slate-800 p-5 rounded-xl space-y-3">
+                      <label className="block text-xs font-semibold text-slate-200">
+                        {t("兵士Lvを回答してください（SvS当日までに解放する場合は解放予定後で回答）")}
+                      </label>
+                      <p className="text-[11px] text-slate-400">
                         {t("過去の回答でFC10T11を選択している場合、設問は表示されません。")}
-                      </span>
                       </p>
-
-                      {member?.shield_soldier !== 'FC10T11' && (
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-400">{t("・盾兵")} <span className="text-rose-400">*</span></label>
-                          <div className="relative">
-                            <select
-                              disabled={isExpired}
-                              value={shieldSoldier}
-                              onChange={(e) => setShieldSoldier(e.target.value)}
-                              className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 appearance-none disabled:opacity-60"
-                              required
-                            >
-                              <option value="FC10T11">FC10T11</option>
-                              <option value="FC9T11">FC9T11</option>
-                              <option value="FC8T11">FC8T11</option>
-                              <option value="FC7T11">FC7T11</option>
-                              <option value="FC6T11">FC6T11</option>
-                              <option value="FC5T11">FC5T11</option>
-                              <option value="FC10T10">FC10T10</option>
-                              <option value="FC9T10">FC9T10</option>
-                              <option value="FC8T10">FC8T10</option>
-                              <option value="FC7T10">FC7T10</option>
-                              <option value="FC6T10以下">FC6T10以下</option>
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-                          </div>
+                          <span className="text-[11px] text-slate-400">{t("・盾兵")}</span>
+                          <select
+                            disabled={isExpired}
+                            value={shieldSoldier}
+                            onChange={(e) => setShieldSoldier(e.target.value)}
+                            className="w-full bg-[#151c2c] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          >
+                            {['T10', 'T11', 'FC1T11', 'FC2T11', 'FC3T11', 'FC4T11', 'FC5T11', 'FC10T11'].map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
                         </div>
-                      )}
-
-                      {member?.spear_soldier !== 'FC10T11' && (
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-400">{t("・槍兵")} <span className="text-rose-400">*</span></label>
-                          <div className="relative">
-                            <select
-                              disabled={isExpired}
-                              value={spearSoldier}
-                              onChange={(e) => setSpearSoldier(e.target.value)}
-                              className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 appearance-none disabled:opacity-60"
-                              required
-                            >
-                              <option value="FC10T11">FC10T11</option>
-                              <option value="FC9T11">FC9T11</option>
-                              <option value="FC8T11">FC8T11</option>
-                              <option value="FC7T11">FC7T11</option>
-                              <option value="FC6T11">FC6T11</option>
-                              <option value="FC5T11">FC5T11</option>
-                              <option value="FC10T10">FC10T10</option>
-                              <option value="FC9T10">FC9T10</option>
-                              <option value="FC8T10">FC8T10</option>
-                              <option value="FC7T10">FC7T10</option>
-                              <option value="FC6T10以下">FC6T10以下</option>
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-                          </div>
+                          <span className="text-[11px] text-slate-400">{t("・槍兵")}</span>
+                          <select
+                            disabled={isExpired}
+                            value={spearSoldier}
+                            onChange={(e) => setSpearSoldier(e.target.value)}
+                            className="w-full bg-[#151c2c] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          >
+                            {['T10', 'T11', 'FC1T11', 'FC2T11', 'FC3T11', 'FC4T11', 'FC5T11', 'FC10T11'].map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
                         </div>
-                      )}
-
-                      {member?.bow_soldier !== 'FC10T11' && (
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-slate-400">{t("・弓兵")} <span className="text-rose-400">*</span></label>
-                          <div className="relative">
-                            <select
-                              disabled={isExpired}
-                              value={bowSoldier}
-                              onChange={(e) => setBowSoldier(e.target.value)}
-                              className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 appearance-none disabled:opacity-60"
-                              required
-                            >
-                              <option value="FC10T11">FC10T11</option>
-                              <option value="FC9T11">FC9T11</option>
-                              <option value="FC8T11">FC8T11</option>
-                              <option value="FC7T11">FC7T11</option>
-                              <option value="FC6T11">FC6T11</option>
-                              <option value="FC5T11">FC5T11</option>
-                              <option value="FC10T10">FC10T10</option>
-                              <option value="FC9T10">FC9T10</option>
-                              <option value="FC8T10">FC8T10</option>
-                              <option value="FC7T10">FC7T10</option>
-                              <option value="FC6T10以下">FC6T10以下</option>
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-                            </div>
+                          <span className="text-[11px] text-slate-400">{t("・弓兵")}</span>
+                          <select
+                            disabled={isExpired}
+                            value={bowSoldier}
+                            onChange={(e) => setBowSoldier(e.target.value)}
+                            className="w-full bg-[#151c2c] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          >
+                            {['T10', 'T11', 'FC1T11', 'FC2T11', 'FC3T11', 'FC4T11', 'FC5T11', 'FC10T11'].map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
                         </div>
-                      )}
+                      </div>
                     </div>
                   )}
                 </>
               )}
 
-              {!isExpired && (
-                <div className="flex justify-end gap-3 pt-6 border-t border-slate-800">
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-medium transition shadow cursor-pointer disabled:opacity-50"
-                  >
-                    {submitting ? t('保存中...') : (hasResponded ? t('回答を更新する') : t('回答を送信する'))}
-                  </button>
-                </div>
-              )}
+              <div className="flex justify-end pt-4 border-t border-slate-800">
+                <button
+                  type="submit"
+                  disabled={submitting || isExpired}
+                  className={`px-6 py-3 rounded-xl text-xs font-bold text-white shadow-lg transition ${
+                    isExpired
+                      ? 'bg-slate-700 opacity-50 cursor-not-allowed'
+                      : 'bg-cyan-600 hover:bg-cyan-500 cursor-pointer'
+                  }`}
+                >
+                  {submitting ? t("保存中...") : (hasResponded ? t("回答を更新する") : t("回答を送信する"))}
+                </button>
+              </div>
 
             </form>
           </div>
         )}
-
       </main>
     </div>
   );

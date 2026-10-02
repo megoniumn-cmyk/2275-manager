@@ -20,6 +20,8 @@ type MemberData = {
   shield_soldier?: string;
   spear_soldier?: string;
   bow_soldier?: string;
+  main_game_id?: string;
+  name?: string;
 };
 
 export default function FtdSurveyAnswerPage() {
@@ -28,6 +30,9 @@ export default function FtdSurveyAnswerPage() {
 
   const [survey, setSurvey] = useState<SurveyMaster | null>(null);
   const [member, setMember] = useState<MemberData | null>(null);
+  const [accounts, setAccounts] = useState<MemberData[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   
@@ -61,8 +66,9 @@ export default function FtdSurveyAnswerPage() {
   // 保存されたデータのスナップショット
   const [savedResponse, setSavedResponse] = useState<any>(null);
 
+  // 初回マウント時：アンケート情報の取得とアカウント一覧の構築
   useEffect(() => {
-    async function initData() {
+    async function initMaster() {
       if (!surveyId) return;
 
       try {
@@ -80,10 +86,59 @@ export default function FtdSurveyAnswerPage() {
           throw new Error(lang === 'en' ? 'Logged-in Game ID not found. Please log in again.' : 'ログイン中のゲームIDが見つかりません。再度ログインしてください。');
         }
 
-        const { data: memberData } = await supabase
+        // 1. 自身のメンバー情報を取得
+        const { data: myMember, error: myMemberError } = await supabase
           .from('members')
           .select('*')
           .eq('game_id', currentLoginGameId)
+          .single();
+
+        if (myMemberError && myMemberError.code !== 'PGRST116') throw myMemberError;
+
+        const mainId = myMember?.main_game_id || currentLoginGameId;
+
+        // 2. メインアカウントが共通する（main_game_id が一致する）アカウント一覧を取得
+        const { data: accountsData, error: accountsError } = await supabase
+          .from('members')
+          .select('*')
+          .or(`game_id.eq.${mainId},main_game_id.eq.${mainId}`);
+
+        if (accountsError) throw accountsError;
+
+        const fetchedAccounts = accountsData || [];
+        setAccounts(fetchedAccounts);
+
+        // 初期選択IDの設定（未選択ならログイン中のID）
+        if (fetchedAccounts.some(acc => acc.game_id === currentLoginGameId)) {
+          setSelectedGameId(currentLoginGameId);
+        } else if (fetchedAccounts.length > 0) {
+          setSelectedGameId(fetchedAccounts[0].game_id);
+        } else {
+          setSelectedGameId(currentLoginGameId);
+        }
+
+      } catch (error: any) {
+        console.error(error);
+        alert(error.message || (lang === 'en' ? 'Failed to fetch data.' : 'データの取得に失敗しました。'));
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    initMaster();
+  }, [surveyId, lang]);
+
+  // selectedGameId が変更されるたびに、該当アカウントのメンバー情報および回答状況を再取得・反映
+  useEffect(() => {
+    async function fetchAccountData() {
+      if (!surveyId || !selectedGameId) return;
+
+      setLoading(true);
+      try {
+        const { data: memberData } = await supabase
+          .from('members')
+          .select('*')
+          .eq('game_id', selectedGameId)
           .single();
 
         if (memberData) {
@@ -103,14 +158,14 @@ export default function FtdSurveyAnswerPage() {
             }
           }
         } else {
-          setMember({ game_id: currentLoginGameId });
+          setMember({ game_id: selectedGameId });
         }
 
         const { data: responseData } = await supabase
           .from('survey_responses_ftd')
           .select('*')
           .eq('survey_id', surveyId)
-          .eq('game_id', currentLoginGameId)
+          .eq('game_id', selectedGameId)
           .single();
 
         if (responseData) {
@@ -141,18 +196,31 @@ export default function FtdSurveyAnswerPage() {
           if (responseData.snapshot_shield_soldier) setShieldSoldier(responseData.snapshot_shield_soldier);
           if (responseData.snapshot_spear_soldier) setSpearSoldier(responseData.snapshot_spear_soldier);
           if (responseData.snapshot_bow_soldier) setBowSoldier(responseData.snapshot_bow_soldier);
+        } else {
+          setHasResponded(false);
+          setSavedResponse(null);
+          // 未回答時のフォーム初期値リセットが必要であればここで調整
+          setParticipationType('1');
+          setSlot20(false);
+          setSlot21(false);
+          setSlot22(false);
+          setSlot23(false);
+          setSlot24(false);
+          setSlot25(false);
+          setTimeSlotMemo('');
+          setVcStatus('1');
+          setVcMemo('');
         }
 
       } catch (error: any) {
         console.error(error);
-        alert(error.message || (lang === 'en' ? 'Failed to fetch data.' : 'データの取得に失敗しました。'));
       } finally {
         setLoading(false);
       }
     }
 
-    initData();
-  }, [surveyId, lang]);
+    fetchAccountData();
+  }, [selectedGameId, surveyId]);
 
   const isExpired = survey ? new Date() > new Date(survey.deadline) : false;
 
@@ -174,7 +242,7 @@ export default function FtdSurveyAnswerPage() {
     }
 
     if (!member?.game_id) {
-      alert(lang === 'en' ? 'Logged-in Game ID could not be retrieved.' : 'ログイン中のゲームIDが取得できませんでした。');
+      alert(lang === 'en' ? 'Selected Game ID could not be retrieved.' : '選択中のゲームIDが取得できませんでした。');
       return;
     }
 
@@ -266,7 +334,7 @@ export default function FtdSurveyAnswerPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !survey) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex items-center justify-center">
         <p className="text-sm text-slate-400">{lang === 'en' ? 'Loading...' : '読み込み中...'}</p>
@@ -282,11 +350,8 @@ export default function FtdSurveyAnswerPage() {
     );
   }
 
-  // アンケートタイトルの言語翻訳関数
   const getTranslatedTitle = (title: string) => {
     if (lang === 'en') {
-      // 例: "8/30 霜竜の覇者参加アンケート" -> "8/30 Frostdragon Tyrant Participation Survey"
-      // データベース上のタイトル形式に合わせて柔軟に置換・変換できます
       let translated = title;
       translated = translated.replace(/霜竜の覇者参加アンケート/g, 'Frostdragon Tyrant Participation Survey');
       translated = translated.replace(/霜竜の覇者/g, 'Frostdragon Tyrant');
@@ -340,7 +405,6 @@ export default function FtdSurveyAnswerPage() {
     member?.spear_soldier === 'FC10T11' && 
     member?.bow_soldier === 'FC10T11';
 
-  // 期限のフォーマット（英語の時はUTCに変換）
   const formattedDeadline = lang === 'en' 
     ? new Date(survey.deadline).toUTCString() 
     : new Date(survey.deadline).toLocaleString('ja-JP');
@@ -389,8 +453,28 @@ export default function FtdSurveyAnswerPage() {
               {lang === 'en' ? 'Deadline (UTC): ' : '回答期限: '}{formattedDeadline}
             </span>
           </div>
-          {/* タイトル表示部分（翻訳関数を適用） */}
           <h1 className="text-2xl font-bold text-white">{getTranslatedTitle(survey.title)}</h1>
+
+          {/* アカウント切替UI（セレクトボックス） */}
+          {accounts.length > 0 && (
+            <div className="pt-3 border-t border-slate-800/80 flex items-center gap-3 flex-wrap">
+              <label className="text-xs font-semibold text-slate-300">
+                {lang === 'en' ? 'Select Account:' : 'アカウント切り替え:'}
+              </label>
+              <select
+                value={selectedGameId}
+                onChange={(e) => setSelectedGameId(e.target.value)}
+                className="bg-[#0b0f19] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                {accounts.map((acc) => (
+                  <option key={acc.game_id} value={acc.game_id}>
+                    {acc.name ? `${acc.name} (${acc.game_id})` : acc.game_id}
+                    {acc.game_id === localStorage.getItem('logged_in_game_id') ? (lang === 'en' ? ' [Main]' : ' [メイン]') : (lang === 'en' ? ' [Sub]' : ' [サブ]')}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {hasResponded && !isEditing ? (
@@ -555,10 +639,10 @@ export default function FtdSurveyAnswerPage() {
                       {[
                         { label: lang === 'en' ? '11:00 range' : '20時台', val: slot20, set: setSlot20 },
                         { label: lang === 'en' ? '12:00 range' : '21時台', val: slot21, set: setSlot21 },
-                        { label: '13:00 range' /* '22時台' */, val: slot22, set: setSlot22, labelJa: '22時台' },
-                        { label: '14:00 range' /* '23時台' */, val: slot23, set: setSlot23, labelJa: '23時台' },
-                        { label: '15:00 range' /* '24時台' */, val: slot24, set: setSlot24, labelJa: '24時台' },
-                        { label: '16:00 range' /* '25時台' */, val: slot25, set: setSlot25, labelJa: '25時台' },
+                        { label: '13:00 range', val: slot22, set: setSlot22 },
+                        { label: '14:00 range', val: slot23, set: setSlot23 },
+                        { label: '15:00 range', val: slot24, set: setSlot24 },
+                        { label: '16:00 range', val: slot25, set: setSlot25 },
                       ].map((item, idx) => {
                         const displayLabel = lang === 'en' ? item.label : (['20時台', '21時台', '22時台', '23時台', '24時台', '25時台'][idx]);
                         return (

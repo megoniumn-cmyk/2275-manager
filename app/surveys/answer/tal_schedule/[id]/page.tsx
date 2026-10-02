@@ -9,13 +9,15 @@ type SurveyMaster = {
   survey_type: string;
   title: string;
   event_date: string | null;
-  match_time: string | null; // 追加: 時刻情報
+  match_time: string | null;
   deadline: string;
   status: string;
 };
 
 type MemberData = {
   game_id: string;
+  name?: string;
+  main_game_id?: string | null;
 };
 
 // 辞書データ
@@ -36,6 +38,7 @@ const t = {
     vcLabel: 'VC参加(聞き専)について',
     noteLabel: '備考（参加可能時間）',
     currentLoginId: '回答中のゲームID: ',
+    accountSwitchLabel: '操作アカウント切替: ',
     cancelToResult: 'キャンセルして結果に戻る',
     matchRequired: '[対戦日] ({date}) の参加予定を教えてください。',
     vcRequired: 'VC参加(聞き専)について教えてください。',
@@ -72,6 +75,7 @@ const t = {
     vcLabel: 'VC Participation (Listen-only)',
     noteLabel: 'Note (Available Time)',
     currentLoginId: 'Logged-in Game ID: ',
+    accountSwitchLabel: 'Switch Account: ',
     cancelToResult: 'Cancel and Return',
     matchRequired: 'Please let us know your participation schedule for [Match Date] ({date}).',
     vcRequired: 'Please let us know about your VC participation (listen-only).',
@@ -110,6 +114,9 @@ export default function TalScheduleSurveyAnswerPage() {
 
   const [survey, setSurvey] = useState<SurveyMaster | null>(null);
   const [member, setMember] = useState<MemberData | null>(null);
+  const [accounts, setAccounts] = useState<MemberData[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   
@@ -124,6 +131,7 @@ export default function TalScheduleSurveyAnswerPage() {
 
   const [savedResponse, setSavedResponse] = useState<any>(null);
 
+  // 初期ロード：サーベイ情報およびログインアカウント・サブアカウント情報の取得
   useEffect(() => {
     async function initData() {
       if (!surveyId) return;
@@ -143,34 +151,33 @@ export default function TalScheduleSurveyAnswerPage() {
           throw new Error(dict.alertNoLogin);
         }
 
-        const { data: memberData } = await supabase
+        // 自身のメンバー情報を取得
+        const { data: memberData, error: memberError } = await supabase
           .from('members')
-          .select('game_id')
+          .select('game_id, name, main_game_id')
           .eq('game_id', currentLoginGameId)
           .single();
 
-        if (memberData) {
-          setMember(memberData);
-        } else {
-          setMember({ game_id: currentLoginGameId });
+        if (memberError && memberError.code !== 'PGRST116') {
+          console.error(memberError);
         }
 
-        const { data: responseData } = await supabase
-          .from('survey_responses_tal_schedule')
-          .select('*')
-          .eq('survey_id', surveyId)
-          .eq('game_id', currentLoginGameId)
-          .single();
+        const mainId = memberData?.main_game_id || currentLoginGameId;
 
-        if (responseData) {
-          setHasResponded(true);
-          setSavedResponse(responseData);
+        // メインアカウント自身、またはmain_game_idが一致するサブアカウント一覧を取得
+        const { data: accountsData, error: accountsError } = await supabase
+          .from('members')
+          .select('game_id, name, main_game_id')
+          .or(`game_id.eq.${mainId},main_game_id.eq.${mainId}`);
 
-          if (responseData.match_status) setMatchStatus(responseData.match_status);
-          if (responseData.match_note) setMatchNote(responseData.match_note);
-          if (responseData.vc_status) setVcStatus(responseData.vc_status);
-          if (responseData.vc_note) setVcNote(responseData.vc_note);
+        if (accountsError) {
+          console.error(accountsError);
         }
+
+        const list = accountsData && accountsData.length > 0 ? accountsData : [memberData || { game_id: currentLoginGameId }];
+        setAccounts(list);
+        setSelectedGameId(currentLoginGameId);
+        setMember(list.find(m => m.game_id === currentLoginGameId) || list[0]);
 
       } catch (error: any) {
         console.error(error);
@@ -181,6 +188,47 @@ export default function TalScheduleSurveyAnswerPage() {
 
     initData();
   }, [surveyId]);
+
+  // 選択されたアカウント（selectedGameId）変更時に、該当アカウントのメンバー情報や回答状況を非同期で再取得
+  useEffect(() => {
+    if (!selectedGameId || !surveyId) return;
+
+    async function fetchAccountData() {
+      try {
+        const currentMember = accounts.find(m => m.game_id === selectedGameId) || { game_id: selectedGameId };
+        setMember(currentMember);
+
+        // 既存の回答状況を取得
+        const { data: responseData } = await supabase
+          .from('survey_responses_tal_schedule')
+          .select('*')
+          .eq('survey_id', surveyId)
+          .eq('game_id', selectedGameId)
+          .single();
+
+        if (responseData) {
+          setHasResponded(true);
+          setSavedResponse(responseData);
+          setMatchStatus(responseData.match_status || '1');
+          setMatchNote(responseData.match_note || '');
+          setVcStatus(responseData.vc_status || '1');
+          setVcNote(responseData.vc_note || '');
+        } else {
+          setHasResponded(false);
+          setSavedResponse(null);
+          setMatchStatus('1');
+          setMatchNote('');
+          setVcStatus('1');
+          setVcNote('');
+        }
+        setIsEditing(false);
+      } catch (error: any) {
+        console.error(error);
+      }
+    }
+
+    fetchAccountData();
+  }, [selectedGameId, surveyId, accounts]);
 
   const isExpired = survey ? new Date() > new Date(survey.deadline) : false;
 
@@ -193,7 +241,8 @@ export default function TalScheduleSurveyAnswerPage() {
       return;
     }
 
-    if (!member?.game_id) {
+    const targetGameId = selectedGameId || member?.game_id;
+    if (!targetGameId) {
       alert(dict.alertNoId);
       return;
     }
@@ -212,7 +261,7 @@ export default function TalScheduleSurveyAnswerPage() {
     try {
       const surveyResponsePayload = {
         survey_id: surveyId,
-        game_id: member.game_id,
+        game_id: targetGameId,
         match_status: matchStatus,
         match_note: matchStatus === '2' ? matchNote : null,
         vc_status: vcStatus,
@@ -276,11 +325,10 @@ export default function TalScheduleSurveyAnswerPage() {
     }
   };
 
-  // イベント日時のフォーマット表示（event_date と match_time を結合し、英語表記の時はUS時刻/UTCに変換）
+  // イベント日時のフォーマット表示
   const formatEventDateTime = (dateStr: string | null, timeStr: string | null, isEnglish: boolean) => {
     if (!dateStr) return dict.eventNotSet;
     
-    // 日付部分のパース
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
 
@@ -289,16 +337,12 @@ export default function TalScheduleSurveyAnswerPage() {
     const utcmm = String(d.getUTCMonth() + 1).padStart(2, '0');
     const utcdd = String(d.getUTCDate()).padStart(2, '0');
 
-    // 時刻が指定されている場合
     if (timeStr) {
-      // timeStr は "21:00" などの形式を想定
       const [hoursStr, minutesStr] = timeStr.split(':');
       let h = parseInt(hoursStr, 10);
       const m = minutesStr || '00';
 
       if (isEnglish) {
-        // 日本時間(JST = UTC+9)の時刻と仮定してUTC時刻に変換する場合、あるいは単純にUS時刻(UTC)に換算する場合
-        // ※ 通常 JST から -9 時間で UTC を算出します
         const totalMinutes = h * 60 + parseInt(m, 10) - 9 * 60;
         let utcH = Math.floor((totalMinutes + 1440) % 1440 / 60);
         let utcM = Math.abs(totalMinutes % 60);
@@ -310,7 +354,6 @@ export default function TalScheduleSurveyAnswerPage() {
         return `${mm}/${dd} ${hStr}:${m}`;
       }
     } else {
-      // 時刻が未設定の場合は従来通り（またはデフォルト時刻）
       if (isEnglish) {
         return `${utcmm}/${utcdd} 00:00 UTC`;
       } else {
@@ -378,7 +421,6 @@ export default function TalScheduleSurveyAnswerPage() {
             </span>
           </div>
 
-          {/* アンケートタイトル */}
           <h1 className="text-2xl font-bold text-white">
             {lang === 'en' && survey.event_date ? (() => {
               const d = new Date(survey.event_date);
@@ -389,6 +431,26 @@ export default function TalScheduleSurveyAnswerPage() {
             })() : dict.translateTitle(survey.title)}
           </h1>
         </div>
+
+        {/* アカウント切り替えUI */}
+        {accounts.length > 1 && (
+          <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-4 shadow-xl flex items-center justify-between flex-wrap gap-3">
+            <label className="text-xs text-slate-300 font-semibold flex items-center gap-2">
+              <span>{dict.accountSwitchLabel}</span>
+            </label>
+            <select
+              value={selectedGameId}
+              onChange={(e) => setSelectedGameId(e.target.value)}
+              className="bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+            >
+              {accounts.map((acc) => (
+                <option key={acc.game_id} value={acc.game_id}>
+                  {acc.game_id} {acc.name ? `(${acc.name})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {hasResponded && !isEditing ? (
           <div className="space-y-6">

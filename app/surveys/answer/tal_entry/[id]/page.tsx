@@ -17,11 +17,13 @@ type SurveyMaster = {
 
 type MemberData = {
   game_id: string;
+  nickname?: string;
   fc_level?: string;
   current_power?: string;
   shield_soldier?: string;
   spear_soldier?: string;
   bow_soldier?: string;
+  main_game_id?: string;
 };
 
 export default function TalSurveyAnswerPage() {
@@ -33,6 +35,11 @@ export default function TalSurveyAnswerPage() {
   const [dynamicTranslations, setDynamicTranslations] = useState<Record<string, string>>({});
 
   const [survey, setSurvey] = useState<SurveyMaster | null>(null);
+  
+  // アカウント管理用ステート
+  const [availableAccounts, setAvailableAccounts] = useState<MemberData[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  
   const [member, setMember] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -57,7 +64,7 @@ export default function TalSurveyAnswerPage() {
 
   const [savedResponse, setSavedResponse] = useState<any>(null);
 
-  // 1. 初期ロード（言語設定・辞書データ・アンケート＆回答データ取得）
+  // 1. 初期ロード（言語設定・辞書データ・アンケート＆アカウント一覧取得）
   useEffect(() => {
     const savedLang = localStorage.getItem('preferred_lang') as 'ja' | 'en';
     if (savedLang) setLang(savedLang);
@@ -84,37 +91,76 @@ export default function TalSurveyAnswerPage() {
           throw new Error('ログイン中のゲームIDが見つかりません。再度ログインしてください。');
         }
 
-        const { data: memberData } = await supabase
+        // メインおよび main_game_id が一致するサブアカウント一覧を取得
+        const { data: mainMember, error: mainError } = await supabase
           .from('members')
           .select('*')
           .eq('game_id', currentLoginGameId)
           .single();
 
-        if (memberData) {
-          setMember(memberData);
-          if (memberData.fc_level) setFcLevel(memberData.fc_level);
-          if (memberData.shield_soldier) setShieldSoldier(memberData.shield_soldier);
-          if (memberData.spear_soldier) setSpearSoldier(memberData.spear_soldier);
-          if (memberData.bow_soldier) setBowSoldier(memberData.bow_soldier);
+        if (mainError) throw mainError;
+
+        const { data: subMembers, error: subError } = await supabase
+          .from('members')
+          .select('*')
+          .eq('main_game_id', currentLoginGameId);
+
+        if (subError) throw subError;
+
+        const allAccounts = [mainMember, ...(subMembers || [])].filter(Boolean);
+        setAvailableAccounts(allAccounts);
+        setSelectedGameId(currentLoginGameId);
+
+      } catch (error: any) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    initData();
+  }, [surveyId]);
+
+  // 2. 選択されたアカウント（selectedGameId）が変更された際のデータ（メンバー情報・既存回答）の非同期再取得
+  useEffect(() => {
+    if (!selectedGameId || !surveyId) return;
+
+    async function fetchAccountData() {
+      try {
+        // メンバー情報の反映
+        const matchedMember = availableAccounts.find(m => m.game_id === selectedGameId);
+        if (matchedMember) {
+          setMember(matchedMember);
+          if (matchedMember.fc_level) setFcLevel(matchedMember.fc_level);
+          else setFcLevel('FC9');
+          if (matchedMember.shield_soldier) setShieldSoldier(matchedMember.shield_soldier);
+          else setShieldSoldier('FC10T11');
+          if (matchedMember.spear_soldier) setSpearSoldier(matchedMember.spear_soldier);
+          else setSpearSoldier('FC10T11');
+          if (matchedMember.bow_soldier) setBowSoldier(matchedMember.bow_soldier);
+          else setBowSoldier('FC10T11');
           
-          if (memberData.current_power) {
-            const match = memberData.current_power.match(/^([0-9.]+)([BM]?)$/i);
+          if (matchedMember.current_power) {
+            const match = matchedMember.current_power.match(/^([0-9.]+)([BM]?)$/i);
             if (match) {
               setPowerNum(match[1]);
               if (match[2]) setPowerUnit(match[2].toUpperCase());
             } else {
-              setPowerNum(memberData.current_power);
+              setPowerNum(matchedMember.current_power);
             }
+          } else {
+            setPowerNum('');
           }
         } else {
-          setMember({ game_id: currentLoginGameId });
+          setMember({ game_id: selectedGameId });
         }
 
+        // 該当アカウントの既存回答を取得
         const { data: responseData } = await supabase
           .from('survey_responses_tal_entry')
           .select('*')
           .eq('survey_id', surveyId)
-          .eq('game_id', currentLoginGameId)
+          .eq('game_id', selectedGameId)
           .single();
 
         if (responseData) {
@@ -139,19 +185,24 @@ export default function TalSurveyAnswerPage() {
               setPowerNum(responseData.current_power);
             }
           }
+        } else {
+          setHasResponded(false);
+          setSavedResponse(null);
+          setEntryStatus('yes');
+          setCombatPower('');
+          setScheduleAnswers({ 0: '1', 1: '1', 2: '1', 3: '1', 4: '1', 5: '1', 6: '1' });
+          setVcStatus('1');
         }
 
-      } catch (error: any) {
+      } catch (error) {
         console.error(error);
-      } finally {
-        setLoading(false);
       }
     }
 
-    initData();
-  }, [surveyId]);
+    fetchAccountData();
+  }, [selectedGameId, surveyId, availableAccounts]);
 
-  // 2. 動的翻訳の補完処理
+  // 3. 動的翻訳の補完処理
   useEffect(() => {
     if (lang === 'ja') return;
 
@@ -199,7 +250,8 @@ export default function TalSurveyAnswerPage() {
       "保存中...",
       "回答を更新する",
       "回答を送信する",
-      "初戦の日付: "
+      "初戦の日付: ",
+      "操作アカウント選択: "
     ];
 
     const surveyTitle = survey?.title ? [survey.title] : [];
@@ -286,8 +338,8 @@ export default function TalSurveyAnswerPage() {
       return;
     }
 
-    if (!member?.game_id) {
-      alert(lang === 'en' ? 'Logged-in game ID could not be retrieved.' : 'ログイン中のゲームIDが取得できませんでした。');
+    if (!selectedGameId) {
+      alert(lang === 'en' ? 'Game ID could not be retrieved.' : 'ゲームIDが取得できませんでした。');
       return;
     }
 
@@ -316,14 +368,14 @@ export default function TalSurveyAnswerPage() {
         const { error: memberError } = await supabase
           .from('members')
           .update(memberUpdatePayload)
-          .eq('game_id', member.game_id);
+          .eq('game_id', selectedGameId);
 
         if (memberError) throw memberError;
       }
 
       const surveyResponsePayload: any = {
         survey_id: surveyId,
-        game_id: member.game_id,
+        game_id: selectedGameId,
         entry_status: entryStatus,
         fc_level: entryStatus === 'yes' ? finalFcLevel : null,
         combat_power: entryStatus === 'yes' ? combatPower : null,
@@ -363,7 +415,6 @@ export default function TalSurveyAnswerPage() {
     if (lang === 'en') {
       if (dict[text]) return dict[text];
 
-      // アンケートタイトルの英訳対応（(エントリー) や (ENTRY) などの括弧書きも含めて綺麗に置換）
       if (text.includes('兵器リーグ参加アンケート')) {
         let translatedTitle = text.replace(/兵器リーグ参加アンケート/g, 'Arms League Participation Survey');
         translatedTitle = translatedTitle.replace(/\(エントリー\)/g, '(Entry)').replace(/\(ENTRY\)/g, '(Entry)');
@@ -412,6 +463,7 @@ export default function TalSurveyAnswerPage() {
       if (text === "回答を更新する") return "Update Response";
       if (text === "回答を送信する") return "Submit Response";
       if (text === "初戦の日付: ") return "First match date: ";
+      if (text === "操作アカウント選択: ") return "Select Account: ";
     }
 
     return dynamicTranslations[text] || text;
@@ -529,6 +581,24 @@ export default function TalSurveyAnswerPage() {
               {t("初戦の日付: ")}{lang === 'en' ? new Date(survey.event_date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : new Date(survey.event_date).toLocaleDateString('ja-JP')}
             </p>
           )}
+
+          {/* アカウント切り替えUI */}
+          {availableAccounts.length > 0 && (
+            <div className="pt-3 border-t border-slate-800 flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-slate-300">{t("操作アカウント選択: ")}</span>
+              <select
+                value={selectedGameId}
+                onChange={(e) => setSelectedGameId(e.target.value)}
+                className="bg-[#0b0f19] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+              >
+                {availableAccounts.map((acc) => (
+                  <option key={acc.game_id} value={acc.game_id}>
+                    {acc.game_id} {acc.nickname ? `(${acc.nickname})` : ''} {acc.main_game_id ? '[Sub]' : '[Main]'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {hasResponded && !isEditing ? (
@@ -562,7 +632,7 @@ export default function TalSurveyAnswerPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
                   <span className="text-slate-400">{t("回答ゲームID")}</span>
-                  <p className="font-mono font-bold text-cyan-400 text-sm">{member?.game_id}</p>
+                  <p className="font-mono font-bold text-cyan-400 text-sm">{selectedGameId}</p>
                 </div>
 
                 <div className="bg-[#0b0f19] border border-slate-800 p-4 rounded-xl space-y-1">
@@ -637,7 +707,7 @@ export default function TalSurveyAnswerPage() {
               <div className="flex items-center justify-between bg-[#0b0f19] border border-slate-800 p-4 rounded-xl text-xs">
                 <div>
                   <span className="text-slate-400">{t("回答中のゲームID: ")}</span>
-                  <span className="font-mono font-bold text-cyan-400 text-sm">{member?.game_id}</span>
+                  <span className="font-mono font-bold text-cyan-400 text-sm">{selectedGameId}</span>
                 </div>
                 {hasResponded && (
                   <button
@@ -787,142 +857,109 @@ export default function TalSurveyAnswerPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 pt-4 border-t border-slate-800">
-                    <label className="block text-xs font-semibold text-slate-200">
-                      {t("総力を入力してください。")} <span className="text-rose-400">{t("*回答必須")}</span>
-                    </label>
-                    <div className="flex gap-3">
+                  <div className="space-y-4 pt-4 border-t border-slate-800">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold text-slate-200">
+                        {t("総力を入力してください。")}
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <input
                         type="text"
                         disabled={isExpired}
                         value={powerNum}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9.]/g, '');
-                          setPowerNum(val);
-                        }}
+                        onChange={(e) => setPowerNum(e.target.value)}
                         placeholder={t("例: 1.1")}
                         className="flex-1 bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono disabled:opacity-60"
-                        required
                       />
-                      <div className="relative w-36">
-                        <select
-                          disabled={isExpired}
-                          value={powerUnit}
-                          onChange={(e) => setPowerUnit(e.target.value)}
-                          className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold appearance-none disabled:opacity-60"
-                        >
-                          <option value="B">B</option>
-                          <option value="M">M</option>
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
+                      <div className="flex bg-[#0b0f19] border border-slate-700 p-0.5 rounded-xl">
+                        {['B', 'M'].map((unit) => (
+                          <button
+                            type="button"
+                            disabled={isExpired}
+                            key={unit}
+                            onClick={() => setPowerUnit(unit)}
+                            className={`px-4 py-2.5 rounded-lg text-xs font-bold transition ${
+                              isExpired ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                            } ${
+                              powerUnit === unit
+                                ? 'bg-cyan-600 text-white shadow'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {unit}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
 
-                  {!isAllFc10T11 && (
-                    <div className="space-y-4 pt-4 border-t border-slate-800">
-                      <p className="text-xs font-semibold text-slate-200">
-                        {t("兵士Lvを回答してください（SvS当日までに解放する場合は、解放予定後の兵士Lvで回答）")} <span className="text-rose-400">{t("*回答必須")}</span>
-                      </p>
+                  <div className="space-y-4 pt-4 border-t border-slate-800">
+                    <label className="block text-xs font-semibold text-slate-200">
+                      {t("兵士Lvを回答してください（SvS当日までに解放する場合は、解放予定後の兵士Lvで回答）")}
+                    </label>
 
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400">{t("・盾兵")} <span className="text-rose-400">*</span></label>
-                        <div className="relative">
-                          <select
-                            disabled={isExpired}
-                            value={shieldSoldier}
-                            onChange={(e) => setShieldSoldier(e.target.value)}
-                            className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 appearance-none disabled:opacity-60"
-                            required
-                          >
-                            <option value="FC10T11">FC10T11</option>
-                            <option value="FC9T11">FC9T11</option>
-                            <option value="FC8T11">FC8T11</option>
-                            <option value="FC7T11">FC7T11</option>
-                            <option value="FC6T11">FC6T11</option>
-                            <option value="FC5T11">FC5T11</option>
-                            <option value="FC10T10">FC10T10</option>
-                            <option value="FC9T10">FC9T10</option>
-                            <option value="FC8T10">FC8T10</option>
-                            <option value="FC7T10">FC7T10</option>
-                            <option value="FC6T10以下">FC6T10以下</option>
-                          </select>
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#0b0f19] p-4 rounded-xl border border-slate-800">
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-semibold text-slate-300 block">{t("盾兵")}</span>
+                        <select
+                          disabled={isExpired || isAllFc10T11}
+                          value={shieldSoldier}
+                          onChange={(e) => setShieldSoldier(e.target.value)}
+                          className="w-full bg-[#151c2c] border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 disabled:opacity-40"
+                        >
+                          <option value="FC10T11">FC10T11 (T11解放)</option>
+                          <option value="T10">T10</option>
+                          <option value="T9">T9以下</option>
+                        </select>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400">{t("・槍兵")} <span className="text-rose-400">*</span></label>
-                        <div className="relative">
-                          <select
-                            disabled={isExpired}
-                            value={spearSoldier}
-                            onChange={(e) => setSpearSoldier(e.target.value)}
-                            className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 appearance-none disabled:opacity-60"
-                            required
-                          >
-                            <option value="FC10T11">FC10T11</option>
-                            <option value="FC9T11">FC9T11</option>
-                            <option value="FC8T11">FC8T11</option>
-                            <option value="FC7T11">FC7T11</option>
-                            <option value="FC6T11">FC6T11</option>
-                            <option value="FC5T11">FC5T11</option>
-                            <option value="FC10T10">FC10T10</option>
-                            <option value="FC9T10">FC9T10</option>
-                            <option value="FC8T10">FC8T10</option>
-                            <option value="FC7T10">FC7T10</option>
-                            <option value="FC6T10以下">FC6T10以下</option>
-                          </select>
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-                        </div>
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-semibold text-slate-300 block">{t("槍兵")}</span>
+                        <select
+                          disabled={isExpired || isAllFc10T11}
+                          value={spearSoldier}
+                          onChange={(e) => setSpearSoldier(e.target.value)}
+                          className="w-full bg-[#151c2c] border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 disabled:opacity-40"
+                        >
+                          <option value="FC10T11">FC10T11 (T11解放)</option>
+                          <option value="T10">T10</option>
+                          <option value="T9">T9以下</option>
+                        </select>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-slate-400">{t("・弓兵")} <span className="text-rose-400">*</span></label>
-                        <div className="relative">
-                          <select
-                            disabled={isExpired}
-                            value={bowSoldier}
-                            onChange={(e) => setBowSoldier(e.target.value)}
-                            className="w-full bg-[#0b0f19] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 appearance-none disabled:opacity-60"
-                            required
-                          >
-                            <option value="FC10T11">FC10T11</option>
-                            <option value="FC9T11">FC9T11</option>
-                            <option value="FC8T11">FC8T11</option>
-                            <option value="FC7T11">FC7T11</option>
-                            <option value="FC6T11">FC6T11</option>
-                            <option value="FC5T11">FC5T11</option>
-                            <option value="FC10T10">FC10T10</option>
-                            <option value="FC9T10">FC9T10</option>
-                            <option value="FC8T10">FC8T10</option>
-                            <option value="FC7T10">FC7T10</option>
-                            <option value="FC6T10以下">FC6T10以下</option>
-                          </select>
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-                        </div>
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-semibold text-slate-300 block">{t("弓兵")}</span>
+                        <select
+                          disabled={isExpired || isAllFc10T11}
+                          value={bowSoldier}
+                          onChange={(e) => setBowSoldier(e.target.value)}
+                          className="w-full bg-[#151c2c] border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 disabled:opacity-40"
+                        >
+                          <option value="FC10T11">FC10T11 (T11解放)</option>
+                          <option value="T10">T10</option>
+                          <option value="T9">T9以下</option>
+                        </select>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </>
               )}
 
               {!isExpired && (
-                <div className="flex justify-end gap-3 pt-6 border-t border-slate-800">
+                <div className="pt-4 border-t border-slate-800 flex justify-end">
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-medium transition shadow cursor-pointer disabled:opacity-50"
+                    className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition shadow cursor-pointer disabled:opacity-50"
                   >
-                    {submitting ? t('保存中...') : (hasResponded ? t('回答を更新する') : t('回答を送信する'))}
+                    {submitting ? t("保存中...") : hasResponded ? t("回答を更新する") : t("回答を送信する")}
                   </button>
                 </div>
               )}
-
             </form>
           </div>
         )}
-
       </main>
     </div>
   );
