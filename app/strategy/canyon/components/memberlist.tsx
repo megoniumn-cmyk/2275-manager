@@ -41,7 +41,7 @@ export default function MemberList({
   handleSaveNote,
 }) {
   const [activeModalTeam, setActiveModalTeam] = useState(null); // 開いているチーム名
-  const [selectedMemberIds, setSelectedMemberIds] = useState([]); // 選択中のメンバーID配列
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]); // モーダル内で選択中のメンバーID
 
   const handleSaveStart = async (val) => {
     setStartPos(val);
@@ -89,27 +89,37 @@ export default function MemberList({
     }
   };
 
+  // アカウント名（name）の更新
+  const handleUpdateName = async (id, newName) => {
+    if (!newName.trim()) return;
+    const { error } = await supabase
+      .from('cc_memberlist')
+      .update({ name: newName.trim() })
+      .eq('id', id);
+
+    if (!error && fetchMembers) {
+      fetchMembers();
+    }
+  };
+
   // モーダルを開く
   const openAddModal = (teamName) => {
     setActiveModalTeam(teamName);
     setSelectedMemberIds([]);
   };
 
-  // モーダル内でメンバー選択をトグル
+  // モーダル内でのメンバー選択切り替え
   const toggleSelectMember = (id) => {
-    if (selectedMemberIds.includes(id)) {
-      setSelectedMemberIds(selectedMemberIds.filter((mId) => mId !== id));
-    } else {
-      setSelectedMemberIds([...selectedMemberIds, id]);
-    }
+    setSelectedMemberIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
   };
 
-  // 選択したメンバーを一括でチームに追加
+  // 選択したメンバーをチームに追加
   const handleAddSelectedMembers = async () => {
     if (!activeModalTeam || selectedMemberIds.length === 0) return;
 
     for (const id of selectedMemberIds) {
-      // 追加するメンバーの現在の状態を取得して、benchがtrueなら役割を「控え」にする
       const targetMember = members.find((m) => m.id === id);
       const defaultRole = targetMember?.bench ? '控え' : 'メンバー';
 
@@ -119,18 +129,17 @@ export default function MemberList({
         .eq('id', id);
     }
 
-    setActiveModalTeam(null);
-    setSelectedMemberIds([]);
     if (fetchMembers) {
       fetchMembers();
     }
+    setActiveModalTeam(null);
+    setSelectedMemberIds([]);
   };
 
   const currentStartKey = ['左', '右', '下'].includes(startPos) ? startPos : '左';
   const activeTeams = TEAM_CONFIGS[currentStartKey] || TEAM_CONFIGS['左'];
 
   // まだどのチームにも所属していないメンバーを抽出
-  // 並び順：参戦(bench=false)優先 → 控え(bench=true)、それぞれの中で戦力が高い順
   const availableMembers = members
     .filter((m) => !m.team)
     .sort((a, b) => {
@@ -142,7 +151,7 @@ export default function MemberList({
 
   return (
     <div className="space-y-6">
-      {/* スタート位置設定（プルダウンに変更） */}
+      {/* スタート位置設定 */}
       <div className="bg-[#151c2c] border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-3">
         <h2 className="text-sm font-extrabold text-cyan-400 flex items-center gap-2">
           <span>🏁</span> スタート位置の設定
@@ -194,9 +203,17 @@ export default function MemberList({
                       >
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-1.5 truncate">
-                            <span className="text-xs font-bold text-white truncate max-w-[100px]">
-                              {m.name}
-                            </span>
+                            <input
+                              type="text"
+                              defaultValue={m.name}
+                              onBlur={(e) => handleUpdateName(m.id, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.target.blur();
+                                }
+                              }}
+                              className="text-xs font-bold text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-cyan-500 outline-none truncate max-w-[110px]"
+                            />
                             {m.bench && (
                               <span className="text-[9px] bg-amber-950/80 text-amber-400 px-1.5 py-0.2 rounded border border-amber-500/30">
                                 控え
@@ -256,7 +273,7 @@ export default function MemberList({
         </div>
       </div>
 
-      {/* メンバー追加モーダル（オーバーレイ） */}
+      {/* メンバー追加モーダル（複数選択対応） */}
       {activeModalTeam && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="bg-[#151c2c] border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
@@ -280,21 +297,21 @@ export default function MemberList({
                   <div
                     key={m.id}
                     onClick={() => toggleSelectMember(m.id)}
-                    className={`p-2.5 rounded-xl border flex justify-between items-center cursor-pointer transition ${
+                    className={`p-2.5 rounded-xl border cursor-pointer flex justify-between items-center transition ${
                       isSelected
-                        ? 'bg-cyan-950/60 border-cyan-500 text-white'
+                        ? 'bg-cyan-950/40 border-cyan-500 text-white'
                         : 'bg-[#0b0f19] border-slate-800 hover:border-slate-700 text-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => {}}
-                        className="rounded border-slate-700 text-cyan-600 focus:ring-0 pointer-events-none"
+                        onChange={() => {}} // 親divのonClickで制御
+                        className="rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
                       />
                       <div>
-                        <div className="text-xs font-bold">{m.name}</div>
+                        <div className="text-xs font-bold text-white">{m.name}</div>
                         <div className="text-[10px] text-slate-400">
                           戦力: {m.power?.toLocaleString()}
                         </div>
@@ -320,11 +337,11 @@ export default function MemberList({
               )}
             </div>
 
-            <div className="flex gap-2 pt-2 border-t border-slate-800">
+            <div className="pt-2 border-t border-slate-800 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setActiveModalTeam(null)}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+                className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
               >
                 キャンセル
               </button>
@@ -332,9 +349,9 @@ export default function MemberList({
                 type="button"
                 onClick={handleAddSelectedMembers}
                 disabled={selectedMemberIds.length === 0}
-                className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-lg"
+                className="py-2 px-4 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-xl text-xs font-bold transition"
               >
-                追加する ({selectedMemberIds.length}名)
+                選択したメンバーを追加 ({selectedMemberIds.length})
               </button>
             </div>
           </div>
@@ -347,33 +364,44 @@ export default function MemberList({
           <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
             <span>👥</span> 参戦メンバー一覧 ({members.length}名)
           </h2>
-          <span className="text-xs text-slate-400">※クリックで参戦/控えを切り替え</span>
+          <span className="text-xs text-slate-400">※クリックで参戦/控えを切り替え、名前を直接編集可能</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-96 overflow-y-auto pr-1">
           {members.map((m) => (
             <div
               key={m.id}
-              onClick={() => handleToggleBench(m.id, m.bench)}
-              className={`p-3 rounded-xl border flex justify-between items-center cursor-pointer transition ${
+              className={`p-3 rounded-xl border flex justify-between items-center transition ${
                 m.bench
-                  ? 'bg-[#0b0f19]/40 border-slate-800/60 opacity-50 hover:opacity-80'
-                  : 'bg-[#0b0f19] border-slate-800 hover:border-cyan-500/50 shadow-sm'
+                  ? 'bg-[#0b0f19]/40 border-slate-800/60 opacity-50'
+                  : 'bg-[#0b0f19] border-slate-800 shadow-sm'
               }`}
             >
-              <div>
-                <div className="text-xs font-bold text-white truncate max-w-[140px]">
-                  {m.name}
-                </div>
-                <div className="text-[10px] text-slate-400">
+              <div className="space-y-1">
+                <input
+                  type="text"
+                  defaultValue={m.name}
+                  onBlur={(e) => handleUpdateName(m.id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.target.blur();
+                    }
+                  }}
+                  className="text-xs font-bold text-white bg-transparent border-b border-transparent hover:border-slate-600 focus:border-cyan-500 outline-none truncate max-w-[130px]"
+                />
+                <div
+                  className="text-[10px] text-slate-400 cursor-pointer"
+                  onClick={() => handleToggleBench(m.id, m.bench)}
+                >
                   戦力: {m.power?.toLocaleString()}
                 </div>
               </div>
               <span
-                className={`text-[10px] px-2 py-1 rounded-lg font-bold ${
+                onClick={() => handleToggleBench(m.id, m.bench)}
+                className={`text-[10px] px-2 py-1 rounded-lg font-bold cursor-pointer ${
                   m.bench
-                    ? 'bg-slate-800 text-slate-400'
-                    : 'bg-cyan-950 text-cyan-400 border border-cyan-500/30'
+                    ? 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    : 'bg-cyan-950 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-900'
                 }`}
               >
                 {m.bench ? '控え' : '参戦'}
@@ -382,7 +410,7 @@ export default function MemberList({
           ))}
           {members.length === 0 && (
             <div className="col-span-full py-8 text-center text-xs text-slate-500">
-              メンバーが登録されていません。上の「テキストデータから一括登録」からデータをインポートしてください。
+              メンバーが登録されていません。
             </div>
           )}
         </div>
@@ -430,7 +458,7 @@ export default function MemberList({
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-300 block mb-1">
-                ⏱️️ フェーズ3
+                ⏱ フェーズ3
               </label>
               <textarea
                 className="w-full h-24 bg-[#0b0f19] border border-slate-700 rounded-xl p-3 text-xs text-white outline-none focus:border-cyan-500"
