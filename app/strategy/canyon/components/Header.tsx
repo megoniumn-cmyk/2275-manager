@@ -6,8 +6,9 @@ import { supabase } from '@/lib/supabase';
 
 const getComingSaturday = () => {
   const d = new Date();
-  const day = d.getDay();
-  const diff = day === 0 ? 0 : 7 - day;
+  const day = d.getDay(); // 0: 日曜, 6: 土曜
+  // 土曜日(6)までの日数を計算。今日が土曜日なら0、日曜(0)なら6、月曜(1)なら5...
+  const diff = (6 - day + 7) % 7;
   d.setDate(d.getDate() + diff);
   return d.toISOString().split('T')[0];
 };
