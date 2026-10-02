@@ -40,7 +40,7 @@ type LeagueParticipation = {
 
 const OPTIONS_RALLY = ['-', '未エントリー', '軍1参加', '軍1欠席', '軍1控欠席', '軍1遅刻', '軍1指示×', '軍1指示△', '軍2参加', '軍2不参加・遅刻', '軍2指示×', '加入前'];
 const OPTIONS_TEAM = ['-', '未エントリー', '未エントリー(移動なし)', '軍1参加', '軍1欠席', '軍1遅刻・離脱', '軍1指示×', '軍1指示△', '軍2参加', '軍2不参加・遅刻', '軍2指示×', '加入前'];
-const OPTIONS_LEAGUE = ['-', '未エントリー', '未エントリー(移動なし)', '軍1全参加', '軍1ほぼ全参加', '軍1半分以上参加', '軍2エントリー', '加入前'];
+const OPTIONS_LEAGUE = ['-', '未エントリー', '未エントリー(移動なし)', '軍1全参加', '軍1ほぼ全参加', '軍1半分以上参加', '軍1半分以上不参加', '軍2エントリー', '加入前'];
 const OPTIONS_SIEGE = ['-', '未エントリー', '攻撃参加(午前攻撃あり)', '攻撃参加(午前攻撃なし)', '攻撃参加(指示×)', '攻撃不参加(エントリーのみ)'];
 
 // 兵器リーグ詳細設定用の個別選択肢
@@ -182,21 +182,17 @@ export default function EventsPage() {
         (m.name || '').toLowerCase().includes(query)
     );
 
-    // イベント種類ごとのステータス集計
-    // targetTypes: SvS, 霜竜の覇者, 雪原兵器リーグ, 兵器工場戦, 峡谷合戦, 凛風工場戦
     const eventTypesMap: Record<string, { total: number; statusCounts: Record<string, number> }> = {};
     
     PRESET_EVENTS.forEach((title) => {
       eventTypesMap[title] = { total: 0, statusCounts: {} };
     });
 
-    // 兵器リーグ詳細用
     eventTypesMap['雪原兵器リーグ(詳細戦績)'] = { total: 0, statusCounts: {} };
 
     matchedMembers.forEach((member) => {
       const gId = member.game_id;
       
-      // event_participations から集計
       events.forEach((ev) => {
         const title = ev.title;
         if (!eventTypesMap[title]) {
@@ -209,7 +205,6 @@ export default function EventsPage() {
         eventTypesMap[title].total += 1;
         eventTypesMap[title].statusCounts[st] = (eventTypesMap[title].statusCounts[st] || 0) + 1;
 
-        // 雪原兵器リーグの場合は league_participations も集計
         if (title === '雪原兵器リーグ') {
           const leagueParts = leagueParticipations.filter(
             (lp) => lp.event_id === ev.id && String(lp.member_game_id).trim() === String(gId).trim()
@@ -651,7 +646,6 @@ export default function EventsPage() {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            {/* イベント参加状況確認ボタン */}
             <button
               onClick={() => setIsStatusCheckModalOpen(true)}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded transition text-sm flex items-center gap-1.5 shadow-lg shadow-indigo-900/40"
@@ -1140,7 +1134,6 @@ export default function EventsPage() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* マッチしたメンバー一覧の簡易表示 */}
                   <div className="bg-gray-800/50 p-3 rounded-xl border border-gray-800 flex flex-wrap gap-2 items-center">
                     <span className="text-xs text-gray-400 font-semibold">一致したメンバー ({statusCheckResults.matchedMembers.length}名):</span>
                     {statusCheckResults.matchedMembers.map((m) => (
@@ -1150,13 +1143,11 @@ export default function EventsPage() {
                     ))}
                   </div>
 
-                  {/* 各イベントのステータス割合（円グラフ風バー表現） */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(statusCheckResults.stats).map(([eventTitle, data]) => {
                       const total = data.total;
                       if (total === 0) return null;
 
-                      // カラーパレット用の配列
                       const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500', 'bg-rose-500'];
 
                       return (
@@ -1166,7 +1157,6 @@ export default function EventsPage() {
                             <span className="text-[11px] text-gray-400">総件数: {total}</span>
                           </div>
 
-                          {/* プログレスバー風の比率グラフ */}
                           <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden flex shadow-inner">
                             {Object.entries(data.statusCounts).map(([st, count], idx) => {
                               const percentage = (count / total) * 100;
@@ -1182,7 +1172,6 @@ export default function EventsPage() {
                             })}
                           </div>
 
-                          {/* ステータス内訳リスト */}
                           <div className="space-y-1.5 pt-1 max-h-40 overflow-y-auto pr-1">
                             {Object.entries(data.statusCounts).map(([st, count], idx) => {
                               const percentage = ((count / total) * 100).toFixed(1);
