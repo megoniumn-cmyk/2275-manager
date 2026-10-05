@@ -35,13 +35,15 @@ export default function SubmitPage() {
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({})
   const [file, setFile] = useState<File | null>(null)
 
-  const handleItemChange = (label: string, value: number) => {
+const handleItemChange = (label: string, value: number) => {
     if (value > 0) {
       setItemCounts(prev => ({ ...prev, [label]: value }))
     } else {
-      const copy = { ...prev }
-      delete copy[label]
-      setItemCounts(copy)
+      setItemCounts(prev => {
+        const copy = { ...prev }
+        delete copy[label]
+        return copy
+      })
     }
   }
 
