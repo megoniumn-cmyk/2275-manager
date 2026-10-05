@@ -474,6 +474,32 @@ export default function MembersPage() {
     fetchData();
   };
 
+  // メンバー削除処理
+  const handleDeleteMember = async () => {
+    if (!editingMember || !editingMember.discord_id) return;
+    if (editingMember.discord_id.startsWith('temp_')) {
+      setEditingMember(null);
+      return;
+    }
+
+    const confirmed = window.confirm(`本当に「${editingMember.name || 'このメンバー'}」を削除してもよろしいですか？`);
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from('members')
+      .delete()
+      .eq('discord_id', editingMember.discord_id);
+
+    if (error) {
+      alert('削除に失敗しました: ' + error.message);
+      return;
+    }
+
+    alert('メンバーを削除しました');
+    setEditingMember(null);
+    fetchData();
+  };
+
   const handleDiscordSync = async () => {
     try {
       const response = await fetch('/api/discord/sync', {
@@ -1413,7 +1439,6 @@ export default function MembersPage() {
                     />
                   </div>
 
-                  {/* === ご要望の追加箇所: 総力(移民前) と 元鯖 の間 === */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">Discord ID</label>
                     <input
@@ -1511,20 +1536,35 @@ export default function MembersPage() {
                   />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setEditingMember(null)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition"
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition shadow"
-                  >
-                    保存する
-                  </button>
+                {/* === モーダル下部（左側に削除ボタン、右側にキャンセル・保存ボタン） === */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                  <div>
+                    {!editingMember.discord_id?.startsWith('temp_') && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteMember}
+                        className="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded-lg text-xs font-medium transition shadow"
+                      >
+                        🗑️ 削除する
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditingMember(null)}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-medium transition shadow"
+                    >
+                      保存する
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
