@@ -398,7 +398,7 @@ export default function MembersPage() {
 
   const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingMember || !editingMember.discord_id) return;
+    if (!editingMember) return;
 
     const payloadToSave = {
       ...editingMember,
@@ -415,17 +415,36 @@ export default function MembersPage() {
       discord_checked: parseBoolean(editingMember.discord_checked),
     };
 
-    const { data: dbCurrent } = await supabase
-      .from('members')
-      .select('*')
-      .eq('discord_id', editingMember.discord_id)
-      .maybeSingle();
+    let existingRecord = null;
+    if (editingMember.discord_id && !editingMember.discord_id.startsWith('temp_')) {
+      const { data } = await supabase
+        .from('members')
+        .select('*')
+        .eq('discord_id', editingMember.discord_id)
+        .maybeSingle();
+      existingRecord = data;
+    }
+
+    if (!existingRecord && editingMember.game_id) {
+      const { data } = await supabase
+        .from('members')
+        .select('*')
+        .eq('game_id', editingMember.game_id)
+        .maybeSingle();
+      existingRecord = data;
+    }
+
+    if (!existingRecord && (!editingMember.discord_id || editingMember.discord_id.startsWith('temp_'))) {
+      payloadToSave.discord_id = editingMember.game_id 
+        ? `no_discord_gameid_${editingMember.game_id}` 
+        : `temp_${Math.random().toString(36).substring(2, 11)}`;
+    }
 
     let isChanged = false;
-    if (dbCurrent) {
+    if (existingRecord) {
       for (const key of Object.keys(payloadToSave)) {
         if (key === 'updated_at') continue;
-        if ((payloadToSave as Record<string, any>)[key] !== dbCurrent[key]) {
+        if ((payloadToSave as Record<string, any>)[key] !== existingRecord[key]) {
           isChanged = true;
           break;
         }
@@ -437,15 +456,15 @@ export default function MembersPage() {
     const nowIso = new Date().toISOString();
     const payload = {
       ...payloadToSave,
-      updated_at: isChanged ? nowIso : (dbCurrent?.updated_at || nowIso),
+      updated_at: isChanged ? nowIso : (existingRecord?.updated_at || nowIso),
     };
 
     let error;
-    if (dbCurrent) {
+    if (existingRecord) {
       const res = await supabase
         .from('members')
         .update(payload)
-        .eq('discord_id', editingMember.discord_id);
+        .eq('discord_id', existingRecord.discord_id);
       error = res.error;
     } else {
       const res = await supabase
@@ -476,8 +495,10 @@ export default function MembersPage() {
 
   // メンバー削除処理
   const handleDeleteMember = async () => {
-    if (!editingMember || !editingMember.discord_id) return;
-    if (editingMember.discord_id.startsWith('temp_')) {
+    if (!editingMember) return;
+    
+    // 新規登録中のデータ（temp_で始まる）の場合は単にモーダルを閉じる
+    if (editingMember.discord_id && editingMember.discord_id.startsWith('temp_')) {
       setEditingMember(null);
       return;
     }
@@ -485,10 +506,25 @@ export default function MembersPage() {
     const confirmed = window.confirm(`本当に「${editingMember.name || 'このメンバー'}」を削除してもよろしいですか？`);
     if (!confirmed) return;
 
-    const { error } = await supabase
-      .from('members')
-      .delete()
-      .eq('discord_id', editingMember.discord_id);
+    let error = null;
+
+    // discord_idがある場合は discord_id で削除を試みる
+    if (editingMember.discord_id) {
+      const res = await supabase
+        .from('members')
+        .delete()
+        .eq('discord_id', editingMember.discord_id);
+      error = res.error;
+    }
+
+    // もし discord_id で消せない、またはエラーになった場合かつ game_id があれば game_id でも削除を試みる
+    if ((error || !editingMember.discord_id) && editingMember.game_id) {
+      const res = await supabase
+        .from('members')
+        .delete()
+        .eq('game_id', editingMember.game_id);
+      error = res.error;
+    }
 
     if (error) {
       alert('削除に失敗しました: ' + error.message);
@@ -716,11 +752,23 @@ export default function MembersPage() {
 
       let successCount = 0;
       for (const [, csvRow] of csvMap) {
-        const { data: existing } = await supabase
-          .from('members')
-          .select('*')
-          .eq('discord_id', csvRow.discord_id)
-          .maybeSingle();
+        let existing = null;
+        if (csvRow.discord_id && !String(csvRow.discord_id).startsWith('temp_')) {
+          const { data } = await supabase
+            .from('members')
+            .select('*')
+            .eq('discord_id', csvRow.discord_id)
+            .maybeSingle();
+          existing = data;
+        }
+        if (!existing && csvRow.game_id) {
+          const { data } = await supabase
+            .from('members')
+            .select('*')
+            .eq('game_id', csvRow.game_id)
+            .maybeSingle();
+          existing = data;
+        }
 
         const payload = {
           ...csvRow,
@@ -732,7 +780,7 @@ export default function MembersPage() {
           const res = await supabase
             .from('members')
             .update(payload)
-            .eq('discord_id', csvRow.discord_id);
+            .eq('discord_id', existing.discord_id);
           error = res.error;
         } else {
           const res = await supabase
@@ -1536,18 +1584,16 @@ export default function MembersPage() {
                   />
                 </div>
 
-                {/* === モーダル下部（左側に削除ボタン、右側にキャンセル・保存ボタン） === */}
+                {/* === モーダル下部（削除ボタンを表示条件なしで常に表示するよう修正） === */}
                 <div className="flex items-center justify-between pt-4 border-t border-slate-800">
                   <div>
-                    {!editingMember.discord_id?.startsWith('temp_') && (
-                      <button
-                        type="button"
-                        onClick={handleDeleteMember}
-                        className="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded-lg text-xs font-medium transition shadow"
-                      >
-                        🗑️ 削除する
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleDeleteMember}
+                      className="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white rounded-lg text-xs font-medium transition shadow"
+                    >
+                      🗑️ 削除する
+                    </button>
                   </div>
 
                   <div className="flex gap-3">
