@@ -293,6 +293,16 @@ export default function FtdStrategyPage() {
         snapshot_shield_soldier: resp?.snapshot_shield_soldier || m.shield_soldier,
         snapshot_spear_soldier: resp?.snapshot_spear_soldier || m.spear_soldier,
         snapshot_bow_soldier: resp?.snapshot_bow_soldier || m.bow_soldier,
+        // 英雄データのスナップショット（回答データがあればそちらを優先、なければメンバーマスタ）
+        snapshot_hero_fred: resp?.snapshot_hero_fred ?? m.hero_fred,
+        snapshot_hero_hendrik: resp?.snapshot_hero_hendrik ?? m.hero_hendrik,
+        snapshot_hero_gatto: resp?.snapshot_hero_gatto ?? m.hero_gatto,
+        snapshot_hero_gordon: resp?.snapshot_hero_gordon ?? m.hero_gordon,
+        snapshot_hero_muming: resp?.snapshot_hero_muming ?? m.hero_muming,
+        snapshot_hero_renee: resp?.snapshot_hero_renee ?? m.hero_renee,
+        snapshot_hero_norah: resp?.snapshot_hero_norah ?? m.hero_norah,
+        snapshot_hero_mia: resp?.snapshot_hero_mia ?? m.hero_mia,
+        snapshot_hero_phily: resp?.snapshot_hero_phily ?? m.hero_phily,
       };
 
       if (resp) {
@@ -348,7 +358,7 @@ export default function FtdStrategyPage() {
     return stats;
   }, [selectedAlliances, allSortedMembers, memberTeams]);
 
-  // CSVエクスポート処理（指定された順番に準拠）
+  // CSVエクスポート処理（ご指定の順序に準拠）
   const handleExportCSV = () => {
     if (allSortedMembers.length === 0) {
       alert('エクスポートするデータがありません');
@@ -356,10 +366,11 @@ export default function FtdStrategyPage() {
     }
 
     const headers = [
+      'リーダー',
       '同盟',
       'アカウント名',
-      'FC',
       '総力',
+      'FC',
       '盾兵',
       '槍兵',
       '弓兵',
@@ -368,7 +379,16 @@ export default function FtdStrategyPage() {
       'VC',
       'VC備考',
       'Discord',
-      'エントリー'
+      'エントリー',
+      'フレッド',
+      'ヘンドリック',
+      'ガト',
+      'ゴードン',
+      '無名',
+      'レネ',
+      'ノラ',
+      'ミア',
+      'フレンダー'
     ];
 
     const csvRows = [headers.join(',')];
@@ -394,10 +414,11 @@ export default function FtdStrategyPage() {
       const selectedTeam = memberTeams[m.game_id] || '';
 
       const rowData = [
+        m.leader || '',
         m.alliance || '',
         m.name || '',
-        m.snapshot_fc_level || '',
         m.snapshot_power || '',
+        m.snapshot_fc_level || '',
         m.snapshot_shield_soldier || '',
         m.snapshot_spear_soldier || '',
         m.snapshot_bow_soldier || '',
@@ -406,7 +427,16 @@ export default function FtdStrategyPage() {
         vcStr,
         resp.vc_memo || '',
         discordStr,
-        selectedTeam
+        selectedTeam,
+        m.snapshot_hero_fred ?? '',
+        m.snapshot_hero_hendrik ?? '',
+        m.snapshot_hero_gatto ?? '',
+        m.snapshot_hero_gordon ?? '',
+        m.snapshot_hero_muming ?? '',
+        m.snapshot_hero_renee ?? '',
+        m.snapshot_hero_norah ?? '',
+        m.snapshot_hero_mia ?? '',
+        m.snapshot_hero_phily ?? ''
       ];
 
       const escapedLine = rowData.map((val) => {
