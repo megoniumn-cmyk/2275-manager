@@ -152,9 +152,8 @@ export default function FtdStrategyPage() {
     }
   };
 
-  // チーム選択変更時に自動でデータベースへ保存する処理 (SELECT -> INSERT / UPDATE 方式)
+  // チーム選択変更時に自動でデータベースへ保存する処理
   const handleTeamChange = async (gameId: string, teamValue: string) => {
-    // 画面側の状態を即時更新
     setMemberTeams((prev) => ({
       ...prev,
       [gameId]: teamValue,
@@ -164,16 +163,12 @@ export default function FtdStrategyPage() {
 
     try {
       if (!teamValue) {
-        // 未設定（空）の場合はレコードを削除
-        const { error: delErr } = await supabase
+        await supabase
           .from('ftd_member_teams')
           .delete()
           .eq('survey_id', selectedSurveyId)
           .eq('game_id', gameId);
-
-        if (delErr) throw delErr;
       } else {
-        // 既存データの有無を確認
         const { data: existing, error: selErr } = await supabase
           .from('ftd_member_teams')
           .select('id')
@@ -184,24 +179,18 @@ export default function FtdStrategyPage() {
         if (selErr) throw selErr;
 
         if (existing) {
-          // UPDATE
-          const { error: updErr } = await supabase
+          await supabase
             .from('ftd_member_teams')
             .update({ team_alliance: teamValue })
             .eq('id', existing.id);
-
-          if (updErr) throw updErr;
         } else {
-          // INSERT
-          const { error: insErr } = await supabase
+          await supabase
             .from('ftd_member_teams')
             .insert({
               survey_id: selectedSurveyId,
               game_id: gameId,
               team_alliance: teamValue,
             });
-
-          if (insErr) throw insErr;
         }
       }
     } catch (err: any) {
@@ -336,7 +325,30 @@ export default function FtdStrategyPage() {
     };
   }, [members, responses, allianceOrderMap]);
 
-  // CSVエクスポート処理
+  // 各チームごとの人数・内訳集計
+  const teamStats = useMemo(() => {
+    const stats: Record<string, { total: number; full: number; midway: number }> = {};
+    selectedAlliances.forEach((alli) => {
+      stats[alli] = { total: 0, full: 0, midway: 0 };
+    });
+
+    allSortedMembers.forEach((m: any) => {
+      const assignedTeam = memberTeams[m.game_id];
+      if (assignedTeam && stats[assignedTeam]) {
+        stats[assignedTeam].total++;
+        const pType = String(m.response_data?.participation_type || '');
+        if (pType === '1' || pType === '2') {
+          stats[assignedTeam].full++;
+        } else if (pType === '3') {
+          stats[assignedTeam].midway++;
+        }
+      }
+    });
+
+    return stats;
+  }, [selectedAlliances, allSortedMembers, memberTeams]);
+
+  // CSVエクスポート処理（指定された順番に準拠）
   const handleExportCSV = () => {
     if (allSortedMembers.length === 0) {
       alert('エクスポートするデータがありません');
@@ -355,6 +367,7 @@ export default function FtdStrategyPage() {
       '時間備考',
       'VC',
       'VC備考',
+      'Discord',
       'エントリー'
     ];
 
@@ -377,6 +390,7 @@ export default function FtdStrategyPage() {
       else if (vStat === '2') vcStr = '② 途中';
       else if (vStat === '3' || !resp.vc_status) vcStr = '③ 不参加';
 
+      const discordStr = String(m.is_in_2275).toLowerCase() === 'true' ? '⚪︎' : '×';
       const selectedTeam = memberTeams[m.game_id] || '';
 
       const rowData = [
@@ -391,6 +405,7 @@ export default function FtdStrategyPage() {
         resp.time_slot_memo || '',
         vcStr,
         resp.vc_memo || '',
+        discordStr,
         selectedTeam
       ];
 
@@ -518,6 +533,25 @@ export default function FtdStrategyPage() {
               })}
             </div>
           </div>
+
+          {/* チームごとの割り当て人数・内訳表示エリア */}
+          {selectedAlliances.length > 0 && (
+            <div className="pt-3 border-t border-slate-800/60 flex items-center gap-3 flex-wrap">
+              <span className="text-[11px] text-slate-400 font-semibold">チーム割当状況:</span>
+              {selectedAlliances.map((alli) => {
+                const stat = teamStats[alli] || { total: 0, full: 0, midway: 0 };
+                return (
+                  <div key={`stat-${alli}`} className="bg-[#0b0f19] border border-slate-800 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2">
+                    <span className="font-bold text-cyan-400">{alli}</span>
+                    <span className="text-white font-semibold">{stat.total}名</span>
+                    <span className="text-[10px] text-slate-400">
+                      (フル:{stat.full} / 途中:{stat.midway})
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* テーブル表示セクション */}
