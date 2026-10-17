@@ -197,15 +197,25 @@ const ExportModal = ({
   isOpen,
   onClose,
   transferOptions,
+  allianceListOptions,
   onExport
 }: {
   isOpen: boolean;
   onClose: () => void;
   transferOptions: { label: string }[];
-  onExport: (period: string, statuses: string[]) => void;
+  allianceListOptions: string[];
+  onExport: (period: string, statuses: string[], invitationSlots: string[], alliancesAfter: string[]) => void;
 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(STATUS_OPTIONS);
+  const [selectedSlots, setSelectedSlots] = useState<string[]>(INVITATION_SLOT_OPTIONS);
+  const [selectedAlliancesAfter, setSelectedAlliancesAfter] = useState<string[]>(allianceListOptions);
+
+  useEffect(() => {
+    if (allianceListOptions.length > 0 && selectedAlliancesAfter.length === 0) {
+      setSelectedAlliancesAfter(allianceListOptions);
+    }
+  }, [allianceListOptions]);
 
   if (!isOpen) return null;
 
@@ -217,12 +227,20 @@ const ExportModal = ({
     }
   };
 
-  const handleSelectAll = () => {
-    setSelectedStatuses([...STATUS_OPTIONS]);
+  const handleToggleSlot = (slot: string) => {
+    if (selectedSlots.includes(slot)) {
+      setSelectedSlots(selectedSlots.filter(s => s !== slot));
+    } else {
+      setSelectedSlots([...selectedSlots, slot]);
+    }
   };
 
-  const handleDeselectAll = () => {
-    setSelectedStatuses([]);
+  const handleToggleAllianceAfter = (alliance: string) => {
+    if (selectedAlliancesAfter.includes(alliance)) {
+      setSelectedAlliancesAfter(selectedAlliancesAfter.filter(a => a !== alliance));
+    } else {
+      setSelectedAlliancesAfter([...selectedAlliancesAfter, alliance]);
+    }
   };
 
   const handleExecute = () => {
@@ -234,12 +252,12 @@ const ExportModal = ({
       alert('ステータスを少なくとも1つ選択してください。');
       return;
     }
-    onExport(selectedPeriod, selectedStatuses);
+    onExport(selectedPeriod, selectedStatuses, selectedSlots, selectedAlliancesAfter);
   };
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#151c2c] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div className="bg-[#151c2c] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <h2 className="text-base font-bold text-white">移民リスト画像エクスポート</h2>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕</button>
@@ -261,15 +279,8 @@ const ExportModal = ({
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-slate-400">出力するステータス（複数選択可）</label>
-              <div className="space-x-2">
-                <button type="button" onClick={handleSelectAll} className="text-cyan-400 hover:underline">全選択</button>
-                <span className="text-slate-600">/</span>
-                <button type="button" onClick={handleDeselectAll} className="text-slate-400 hover:underline">解除</button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 bg-[#0b0f19] border border-slate-700 rounded-lg p-3 max-h-40 overflow-y-auto">
+            <label className="block text-slate-400 mb-1.5">出力するステータス（複数選択可）</label>
+            <div className="grid grid-cols-2 gap-2 bg-[#0b0f19] border border-slate-700 rounded-lg p-3 max-h-32 overflow-y-auto">
               {STATUS_OPTIONS.map((status) => (
                 <label key={status} className="flex items-center gap-2 cursor-pointer text-slate-200">
                   <input
@@ -279,6 +290,40 @@ const ExportModal = ({
                     className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
                   />
                   <span>{status}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-slate-400 mb-1.5">招待枠条件（複数選択可）</label>
+            <div className="grid grid-cols-3 gap-2 bg-[#0b0f19] border border-slate-700 rounded-lg p-3">
+              {INVITATION_SLOT_OPTIONS.map((slot) => (
+                <label key={slot} className="flex items-center gap-2 cursor-pointer text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={selectedSlots.includes(slot)}
+                    onChange={() => handleToggleSlot(slot)}
+                    className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
+                  />
+                  <span>{slot}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-slate-400 mb-1.5">同盟(移民後)条件（複数選択可）</label>
+            <div className="grid grid-cols-2 gap-2 bg-[#0b0f19] border border-slate-700 rounded-lg p-3 max-h-32 overflow-y-auto">
+              {allianceListOptions.map((alliance) => (
+                <label key={alliance} className="flex items-center gap-2 cursor-pointer text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={selectedAlliancesAfter.includes(alliance)}
+                    onChange={() => handleToggleAllianceAfter(alliance)}
+                    className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
+                  />
+                  <span className="truncate">{alliance}</span>
                 </label>
               ))}
             </div>
@@ -512,15 +557,30 @@ export default function TransferManagementPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedPeriodFilter, setSelectedPeriodFilter] = useState('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL');
+  const [selectedSlotFilter, setSelectedSlotFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAllianceModalOpen, setIsAllianceModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isBulkDeleteConfirming, setIsBulkDeleteConfirming] = useState(false);
+
+  // ヘッダーフィルタの状態管理
+  const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({
+    server_name: [],
+    status: [],
+    alliance_name: [],
+    fc: [],
+    invitation_slot: [],
+    alliance_after: [],
+    transfer_period: []
+  });
   
   const [editingItem, setEditingItem] = useState<TransferItem>(initialFormState);
   const exportTableRef = useRef<HTMLDivElement>(null);
   const [exportTargetPeriod, setExportTargetPeriod] = useState<string | null>(null);
   const [exportTargetStatuses, setExportTargetStatuses] = useState<string[]>([]);
+  const [exportTargetSlots, setExportTargetSlots] = useState<string[]>([]);
+  const [exportTargetAlliancesAfter, setExportTargetAlliancesAfter] = useState<string[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -539,7 +599,6 @@ export default function TransferManagementPage() {
     if (error) {
       console.error('Error fetching options:', error);
     } else {
-      // 取得したオプションを [数字] の昇順にソートしてセット
       const sorted = sortTransferOptions(data || []);
       setTransferOptions(sorted);
     }
@@ -667,7 +726,14 @@ export default function TransferManagementPage() {
   };
 
   const handleOpenCreateModal = () => {
-    setEditingItem(initialFormState);
+    let maxTransferPeriod = '';
+    if (transferOptions.length > 0) {
+      maxTransferPeriod = transferOptions[transferOptions.length - 1].label;
+    }
+    setEditingItem({
+      ...initialFormState,
+      transfer_period: maxTransferPeriod
+    });
     setIsModalOpen(true);
   };
 
@@ -776,9 +842,11 @@ export default function TransferManagementPage() {
     alert(`${successCount}件のメンバー情報をmembersテーブルに反映（新規登録/変更差分上書き）しました。`);
   };
 
-  const handleExecuteExport = async (period: string, statuses: string[]) => {
+  const handleExecuteExport = async (period: string, statuses: string[], invitationSlots: string[], alliancesAfter: string[]) => {
     setExportTargetPeriod(period);
     setExportTargetStatuses(statuses);
+    setExportTargetSlots(invitationSlots);
+    setExportTargetAlliancesAfter(alliancesAfter);
     setIsExportModalOpen(false);
 
     setTimeout(async () => {
@@ -813,15 +881,41 @@ export default function TransferManagementPage() {
     const matchesKeyword = name.includes(keyword) || gameId.includes(keyword) || alliance.includes(keyword);
     const matchesPeriod = selectedPeriodFilter === 'ALL' || item.transfer_period === selectedPeriodFilter;
     const matchesStatus = selectedStatusFilter === 'ALL' || item.status === selectedStatusFilter;
+    const matchesSlotFilter = selectedSlotFilter === 'ALL' || item.invitation_slot === selectedSlotFilter;
 
-    return matchesKeyword && matchesPeriod && matchesStatus;
+    const matchesColServer = columnFilters.server_name.length === 0 || columnFilters.server_name.includes(item.server_name || '');
+    const matchesColStatus = columnFilters.status.length === 0 || columnFilters.status.includes(item.status || '');
+    const matchesColAllianceName = columnFilters.alliance_name.length === 0 || columnFilters.alliance_name.includes(item.alliance_name || '');
+    const matchesColFc = columnFilters.fc.length === 0 || columnFilters.fc.includes(item.fc || '');
+    const matchesColSlot = columnFilters.invitation_slot.length === 0 || columnFilters.invitation_slot.includes(item.invitation_slot || '');
+    const matchesColAllianceAfter = columnFilters.alliance_after.length === 0 || columnFilters.alliance_after.includes(item.alliance_after || '');
+    const matchesColPeriod = columnFilters.transfer_period.length === 0 || columnFilters.transfer_period.includes(item.transfer_period || '');
+
+    return matchesKeyword && matchesPeriod && matchesStatus && matchesSlotFilter && matchesColServer && matchesColStatus && matchesColAllianceName && matchesColFc && matchesColSlot && matchesColAllianceAfter && matchesColPeriod;
   });
 
-  // 選択された移民時期におけるステータス別人数を計算
+  // ステータス別人数集計（ステータス以外のすべての検索・絞り込み条件を反映）
   const statusCountsForPeriod = STATUS_OPTIONS.reduce((acc, status) => {
     acc[status] = items.filter(item => {
+      const keyword = searchKeyword.toLowerCase();
+      const name = String(item.game_account_name || '').toLowerCase();
+      const gameId = String(item.game_id || '').toLowerCase();
+      const alliance = String(item.alliance_name || '').toLowerCase();
+      
+      const matchesKeyword = name.includes(keyword) || gameId.includes(keyword) || alliance.includes(keyword);
       const matchesPeriod = selectedPeriodFilter === 'ALL' || item.transfer_period === selectedPeriodFilter;
-      return matchesPeriod && item.status === status;
+      const matchesStatus = selectedStatusFilter === 'ALL' || item.status === selectedStatusFilter;
+      const matchesSlotFilter = selectedSlotFilter === 'ALL' || item.invitation_slot === selectedSlotFilter;
+
+      const matchesColServer = columnFilters.server_name.length === 0 || columnFilters.server_name.includes(item.server_name || '');
+      const matchesColStatus = columnFilters.status.length === 0 || columnFilters.status.includes(item.status || '');
+      const matchesColAllianceName = columnFilters.alliance_name.length === 0 || columnFilters.alliance_name.includes(item.alliance_name || '');
+      const matchesColFc = columnFilters.fc.length === 0 || columnFilters.fc.includes(item.fc || '');
+      const matchesColSlot = columnFilters.invitation_slot.length === 0 || columnFilters.invitation_slot.includes(item.invitation_slot || '');
+      const matchesColAllianceAfter = columnFilters.alliance_after.length === 0 || columnFilters.alliance_after.includes(item.alliance_after || '');
+      const matchesColPeriod = columnFilters.transfer_period.length === 0 || columnFilters.transfer_period.includes(item.transfer_period || '');
+
+      return matchesKeyword && matchesPeriod && matchesStatus && matchesSlotFilter && matchesColServer && matchesColStatus && matchesColAllianceName && matchesColFc && matchesColSlot && matchesColAllianceAfter && matchesColPeriod && item.status === status;
     }).length;
     return acc;
   }, {} as Record<string, number>);
@@ -847,7 +941,9 @@ export default function TransferManagementPage() {
         .filter(i => {
           const matchesPeriod = i.transfer_period === exportTargetPeriod;
           const matchesStatus = exportTargetStatuses.includes(i.status);
-          return matchesPeriod && matchesStatus;
+          const matchesSlot = exportTargetSlots.length === 0 || exportTargetSlots.includes(i.invitation_slot);
+          const matchesAllianceAfter = exportTargetAlliancesAfter.length === 0 || exportTargetAlliancesAfter.includes(i.alliance_after);
+          return matchesPeriod && matchesStatus && matchesSlot && matchesAllianceAfter;
         })
         .sort((a, b) => {
           const statusAIndex = STATUS_OPTIONS.indexOf(a.status);
@@ -870,8 +966,44 @@ export default function TransferManagementPage() {
 
   const hasCheckedItems = items.some(i => i.is_checked);
 
+  const getUniqueValuesForColumn = (columnKey: string) => {
+    const values = new Set<string>();
+    items.forEach(i => {
+      const val = i[columnKey as keyof TransferItem];
+      if (val !== null && val !== undefined && val !== '') {
+        values.add(String(val));
+      }
+    });
+    return Array.from(values).sort();
+  };
+
+  const toggleColumnFilter = (columnKey: string, val: string) => {
+    setColumnFilters(prev => {
+      const current = prev[columnKey] || [];
+      if (current.includes(val)) {
+        return { ...prev, [columnKey]: current.filter(v => v !== val) };
+      } else {
+        return { ...prev, [columnKey]: [...current, val] };
+      }
+    });
+  };
+
+  const clearColumnFilter = (columnKey: string) => {
+    setColumnFilters(prev => ({ ...prev, [columnKey]: [] }));
+  };
+
+  // 集計条件ラベルの生成
+  const getFilterLabelSummary = () => {
+    const labels = [];
+    if (selectedPeriodFilter !== 'ALL') labels.push(`時期: ${selectedPeriodFilter}`);
+    if (selectedStatusFilter !== 'ALL') labels.push(`ステータス: ${selectedStatusFilter}`);
+    if (selectedSlotFilter !== 'ALL') labels.push(`招待枠: ${selectedSlotFilter}`);
+    if (labels.length === 0) return 'すべての条件';
+    return labels.join(' / ');
+  };
+
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-6 flex flex-col">
+    <div className="min-h-screen bg-[#0b0f19] text-slate-100 p-6 flex flex-col relative" onClick={() => setActiveFilterColumn(null)}>
       <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-6 shadow-xl mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
@@ -957,6 +1089,20 @@ export default function TransferManagementPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <span className="text-slate-400">招待枠:</span>
+            <select
+              value={selectedSlotFilter}
+              onChange={(e) => setSelectedSlotFilter(e.target.value)}
+              className="bg-[#151c2c] border border-slate-700 text-slate-200 rounded-xl px-3 py-2 outline-none focus:border-cyan-500"
+            >
+              <option value="ALL">すべて表示</option>
+              {INVITATION_SLOT_OPTIONS.map((opt, idx) => (
+                <option key={idx} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
             <span className="text-slate-400">移民時期フィルター:</span>
             <select
               value={selectedPeriodFilter}
@@ -972,13 +1118,12 @@ export default function TransferManagementPage() {
         </div>
       </div>
 
-      {/* ステータス別 人数カウンター ヘッダー */}
       <div className="bg-[#151c2c] border border-slate-800 rounded-xl p-4 mb-4 shadow-xl">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
             <span>📊</span> ステータス別人数集計
             <span className="text-[11px] text-cyan-400 font-normal">
-              （対象時期: {selectedPeriodFilter === 'ALL' ? 'すべての時期' : selectedPeriodFilter}）
+              （適用条件: {getFilterLabelSummary()}）
             </span>
           </div>
         </div>
@@ -1004,22 +1149,166 @@ export default function TransferManagementPage() {
                 <div className="flex items-center">
                   <div className="p-3 font-semibold text-center w-[50px] shrink-0 border-b border-slate-800">作業</div>
                   <div className="p-3 font-semibold text-center w-[65px] shrink-0 border-b border-slate-800">編集</div>
-                  <div className="p-3 font-semibold w-[85px] shrink-0 border-b border-slate-800">サーバー</div>
+                  <div className="p-3 font-semibold w-[85px] shrink-0 border-b border-slate-800 flex items-center justify-between">
+                    <span>サーバー</span>
+                    <button onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'server_name' ? null : 'server_name'); }} className="hover:text-cyan-400">🔍</button>
+                  </div>
                   <div className="p-3 font-semibold w-[130px] shrink-0 border-b border-slate-800">アカウント名</div>
                 </div>
               </th>
-              <th className="p-3 font-semibold w-[120px] border-b border-slate-800">ステータス</th>
-              <th className="p-3 font-semibold w-[110px] border-b border-slate-800">同盟名</th>
+
+              {/* ステータス列ヘッダーフィルタ */}
+              <th className="p-3 font-semibold w-[120px] border-b border-slate-800 relative">
+                <div className="flex items-center justify-between">
+                  <span>ステータス</span>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'status' ? null : 'status'); }} className="hover:text-cyan-400">🔍</button>
+                </div>
+                {activeFilterColumn === 'status' && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[#151c2c] border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700 text-[10px]">
+                      <span>絞り込み選択</span>
+                      <button onClick={() => clearColumnFilter('status')} className="text-cyan-400 hover:underline">クリア</button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {STATUS_OPTIONS.map(val => (
+                        <label key={val} className="flex items-center gap-2 cursor-pointer text-xs">
+                          <input type="checkbox" checked={columnFilters.status.includes(val)} onChange={() => toggleColumnFilter('status', val)} className="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+                          <span className="truncate">{val}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </th>
+
+              {/* 同盟名列ヘッダーフィルタ */}
+              <th className="p-3 font-semibold w-[110px] border-b border-slate-800 relative">
+                <div className="flex items-center justify-between">
+                  <span>同盟名</span>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'alliance_name' ? null : 'alliance_name'); }} className="hover:text-cyan-400">🔍</button>
+                </div>
+                {activeFilterColumn === 'alliance_name' && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[#151c2c] border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700 text-[10px]">
+                      <span>絞り込み選択</span>
+                      <button onClick={() => clearColumnFilter('alliance_name')} className="text-cyan-400 hover:underline">クリア</button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {getUniqueValuesForColumn('alliance_name').map(val => (
+                        <label key={val} className="flex items-center gap-2 cursor-pointer text-xs">
+                          <input type="checkbox" checked={columnFilters.alliance_name.includes(val)} onChange={() => toggleColumnFilter('alliance_name', val)} className="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+                          <span className="truncate">{val}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </th>
+
               <th className="p-3 font-semibold w-[110px] border-b border-slate-800">ゲームID</th>
-              <th className="p-3 font-semibold w-[120px] border-b border-slate-800">FC</th>
+
+              {/* FC列ヘッダーフィルタ */}
+              <th className="p-3 font-semibold w-[120px] border-b border-slate-800 relative">
+                <div className="flex items-center justify-between">
+                  <span>FC</span>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'fc' ? null : 'fc'); }} className="hover:text-cyan-400">🔍</button>
+                </div>
+                {activeFilterColumn === 'fc' && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[#151c2c] border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700 text-[10px]">
+                      <span>絞り込み選択</span>
+                      <button onClick={() => clearColumnFilter('fc')} className="text-cyan-400 hover:underline">クリア</button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {FC_OPTIONS.map(val => (
+                        <label key={val} className="flex items-center gap-2 cursor-pointer text-xs">
+                          <input type="checkbox" checked={columnFilters.fc.includes(val)} onChange={() => toggleColumnFilter('fc', val)} className="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+                          <span className="truncate">{val}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </th>
+
               <th className="p-3 font-semibold w-[110px] border-b border-slate-800">盾兵</th>
               <th className="p-3 font-semibold w-[110px] border-b border-slate-800">槍兵</th>
               <th className="p-3 font-semibold w-[110px] border-b border-slate-800">弓兵</th>
               <th className="p-3 font-semibold w-[110px] border-b border-slate-800">総力(後)</th>
               <th className="p-3 font-semibold w-[110px] border-b border-slate-800">総力(前)</th>
-              <th className="p-3 font-semibold w-[120px] border-b border-slate-800">移民時期</th>
-              <th className="p-3 font-semibold w-[90px] border-b border-slate-800">招待枠</th>
-              <th className="p-3 font-semibold w-[120px] border-b border-slate-800">同盟(移民後)</th>
+
+              {/* 移民時期列ヘッダーフィルタ */}
+              <th className="p-3 font-semibold w-[120px] border-b border-slate-800 relative">
+                <div className="flex items-center justify-between">
+                  <span>移民時期</span>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'transfer_period' ? null : 'transfer_period'); }} className="hover:text-cyan-400">🔍</button>
+                </div>
+                {activeFilterColumn === 'transfer_period' && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[#151c2c] border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700 text-[10px]">
+                      <span>絞り込み選択</span>
+                      <button onClick={() => clearColumnFilter('transfer_period')} className="text-cyan-400 hover:underline">クリア</button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {transferOptions.map(opt => (
+                        <label key={opt.label} className="flex items-center gap-2 cursor-pointer text-xs">
+                          <input type="checkbox" checked={columnFilters.transfer_period.includes(opt.label)} onChange={() => toggleColumnFilter('transfer_period', opt.label)} className="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+                          <span className="truncate">{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </th>
+
+              {/* 招待枠列ヘッダーフィルタ */}
+              <th className="p-3 font-semibold w-[90px] border-b border-slate-800 relative">
+                <div className="flex items-center justify-between">
+                  <span>招待枠</span>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'invitation_slot' ? null : 'invitation_slot'); }} className="hover:text-cyan-400">🔍</button>
+                </div>
+                {activeFilterColumn === 'invitation_slot' && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[#151c2c] border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700 text-[10px]">
+                      <span>絞り込み選択</span>
+                      <button onClick={() => clearColumnFilter('invitation_slot')} className="text-cyan-400 hover:underline">クリア</button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {INVITATION_SLOT_OPTIONS.map(val => (
+                        <label key={val} className="flex items-center gap-2 cursor-pointer text-xs">
+                          <input type="checkbox" checked={columnFilters.invitation_slot.includes(val)} onChange={() => toggleColumnFilter('invitation_slot', val)} className="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+                          <span className="truncate">{val}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </th>
+
+              {/* 同盟(移民後)列ヘッダーフィルタ */}
+              <th className="p-3 font-semibold w-[120px] border-b border-slate-800 relative">
+                <div className="flex items-center justify-between">
+                  <span>同盟(移民後)</span>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveFilterColumn(activeFilterColumn === 'alliance_after' ? null : 'alliance_after'); }} className="hover:text-cyan-400">🔍</button>
+                </div>
+                {activeFilterColumn === 'alliance_after' && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-[#151c2c] border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between items-center mb-2 pb-1 border-b border-slate-700 text-[10px]">
+                      <span>絞り込み選択</span>
+                      <button onClick={() => clearColumnFilter('alliance_after')} className="text-cyan-400 hover:underline">クリア</button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {allianceListOptions.map(val => (
+                        <label key={val} className="flex items-center gap-2 cursor-pointer text-xs">
+                          <input type="checkbox" checked={columnFilters.alliance_after.includes(val)} onChange={() => toggleColumnFilter('alliance_after', val)} className="rounded border-slate-700 bg-slate-900 text-cyan-500" />
+                          <span className="truncate">{val}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </th>
+
               <th className="p-3 font-semibold w-[180px] border-b border-slate-800">備考</th>
             </tr>
           </thead>
@@ -1255,6 +1544,7 @@ export default function TransferManagementPage() {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         transferOptions={transferOptions}
+        allianceListOptions={allianceListOptions}
         onExport={handleExecuteExport}
       />
     </div>
