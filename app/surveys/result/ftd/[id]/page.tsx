@@ -21,6 +21,7 @@ export default function FtdResultPage() {
   const [searchKeyword, setSearchKeyword] = useState<string>('');
 
   const [manualAllianceFilter, setManualAllianceFilter] = useState<string>('ALL');
+  const [manualParticipationFilter, setManualParticipationFilter] = useState<string>('ALL');
   const [manualDiscordFilter, setManualDiscordFilter] = useState<string>('ALL');
   const [manualStatusFilter, setManualStatusFilter] = useState<string>('ALL');
   const [manualSearchKeyword, setManualSearchKeyword] = useState<string>('');
@@ -242,6 +243,16 @@ export default function FtdResultPage() {
     return allTargetMembers.filter((item: any) => {
       const matchAlliance = manualAllianceFilter === 'ALL' || item.alliance === manualAllianceFilter;
       
+      const resp = responses.find((r: any) => r.game_id === item.game_id);
+      let matchParticipation = true;
+      if (manualParticipationFilter !== 'ALL') {
+        if (manualParticipationFilter === 'NONE') {
+          matchParticipation = !resp || !resp.participation_type;
+        } else {
+          matchParticipation = resp && String(resp.participation_type) === manualParticipationFilter;
+        }
+      }
+
       const isValid = hasValidDiscordId(item.discord_id);
       const matchDiscord = 
         manualDiscordFilter === 'ALL' ||
@@ -265,9 +276,9 @@ export default function FtdResultPage() {
         nameStr.includes(keyword) ||
         idStr.includes(keyword);
 
-      return matchAlliance && matchDiscord && matchStatus && matchSearch;
+      return matchAlliance && matchParticipation && matchDiscord && matchStatus && matchSearch;
     });
-  }, [members, manualAllianceFilter, manualDiscordFilter, manualStatusFilter, manualSearchKeyword, answeredGameIds]);
+  }, [members, manualAllianceFilter, manualParticipationFilter, manualDiscordFilter, manualStatusFilter, manualSearchKeyword, answeredGameIds, responses]);
 
   const handleExportSurveyCSV = () => {
     if (filteredAnswered.length === 0) {
@@ -880,6 +891,22 @@ export default function FtdResultPage() {
                     {alliances.map((a: string) => (
                       <option key={a} value={a}>{a}</option>
                     ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 shrink-0">参加予定時間:</span>
+                  <select
+                    value={manualParticipationFilter}
+                    onChange={(e) => setManualParticipationFilter(e.target.value)}
+                    className="bg-[#151c2c] border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:border-cyan-500"
+                  >
+                    <option value="ALL">すべて表示</option>
+                    <option value="1">① フル(移転込)</option>
+                    <option value="2">② フル(戦闘のみ)</option>
+                    <option value="3">③ 途中参加</option>
+                    <option value="4">④ 不参加</option>
+                    <option value="NONE">未選択 (未回答含む)</option>
                   </select>
                 </div>
 
