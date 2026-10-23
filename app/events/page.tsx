@@ -28,6 +28,8 @@ type EventParticipation = {
   event_id: string;
   member_game_id: string | number;
   status: string;
+  event?: string;
+  name?: string;
 };
 
 type LeagueParticipation = {
@@ -43,7 +45,6 @@ const OPTIONS_TEAM = ['-', '未エントリー', '未エントリー(移動な�
 const OPTIONS_LEAGUE = ['-', '未エントリー', '未エントリー(移動なし)', '軍1全参加', '軍1ほぼ全参加', '軍1半分以上参加', '軍1半分以上不参加', '軍2エントリー', '加入前'];
 const OPTIONS_SIEGE = ['-', '未エントリー', '攻撃参加(午前攻撃あり)', '攻撃参加(午前攻撃なし)', '攻撃参加(指示×)', '攻撃不参加(エントリーのみ)'];
 
-// 兵器リーグ詳細設定用の個別選択肢
 const OPTIONS_LEAGUE_DETAIL = [
   '-',
   'フル参加',
@@ -55,6 +56,15 @@ const OPTIONS_LEAGUE_DETAIL = [
 ];
 
 const PRESET_EVENTS = ['SvS', '兵器工場戦', '峡谷合戦', '霜竜の覇者', '雪原兵器リーグ', '凛風攻城戦'];
+
+function formatGameId(id: string | number | null | undefined): string {
+  if (id === null || id === undefined) return '';
+  let str = String(id).trim();
+  if (str.endsWith('.0')) {
+    str = str.slice(0, -2);
+  }
+  return str.trim();
+}
 
 function getOptionsForEvent(title: string) {
   if (['兵器工場戦', '峡谷合戦'].includes(title)) return OPTIONS_RALLY;
@@ -115,9 +125,9 @@ export default function EventsPage() {
   const [leagueModalData, setLeagueModalData] = useState<{ event: EventItem; member: Member } | null>(null);
   const [leagueModalEdits, setLeagueModalEdits] = useState<Record<number, string>>({});
 
-  // イベント参加状況確認モーダル用のステート
   const [isStatusCheckModalOpen, setIsStatusCheckModalOpen] = useState(false);
   const [statusCheckSearchQuery, setStatusCheckSearchQuery] = useState('');
+  const [selectedStatusCheckGameId, setSelectedStatusCheckGameId] = useState<string | null>(null);
 
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -146,19 +156,64 @@ export default function EventsPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  async function fetchAllParticipations() {
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('event_participations')
+        .select('*')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (error || !data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      page++;
+    }
+    return allData;
+  }
+
+  async function fetchAllLeagueParticipations() {
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('league_participations')
+        .select('*')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (error || !data || data.length === 0) break;
+      allData = allData.concat(data);
+      if (data.length < pageSize) break;
+      page++;
+    }
+    return allData;
+  }
+
   async function fetchData() {
     setLoading(true);
-    const [membersRes, eventsRes, partsRes, leaguePartsRes] = await Promise.all([
+    const [membersRes, eventsRes, partsData, leaguePartsData] = await Promise.all([
       supabase.from('members').select('game_id, name, alliance, status').not('game_id', 'is', null).limit(5000),
       supabase.from('events').select('*').order('order_index', { ascending: true }).order('event_date', { ascending: true }).limit(1000),
-      supabase.from('event_participations').select('*').limit(10000),
-      supabase.from('league_participations').select('*').limit(10000),
+      fetchAllParticipations(),
+      fetchAllLeagueParticipations(),
     ]);
 
     if (membersRes.data) setMembers(membersRes.data);
     if (eventsRes.data) setEvents(eventsRes.data);
-    if (partsRes.data) setParticipations(partsRes.data);
-    if (leaguePartsRes.data) setLeagueParticipations(leaguePartsRes.data);
+
+    if (partsData) {
+      const map = new Map<string, EventParticipation>();
+      partsData.forEach((p) => {
+        const key = `${p.event_id}_${formatGameId(p.member_game_id)}`;
+        map.set(key, p);
+      });
+      setParticipations(Array.from(map.values()));
+    }
+
+    if (leaguePartsData) setLeagueParticipations(leaguePartsData);
     
     setLoading(false);
   }
@@ -171,16 +226,20 @@ export default function EventsPage() {
     return Array.from(set);
   }, [members]);
 
-  // 参加状況確認モーダルで検索されたメンバーに紐づくイベントステータスの集計
   const statusCheckResults = useMemo(() => {
     const query = statusCheckSearchQuery.trim().toLowerCase();
     if (!query) return { matchedMembers: [], stats: {} };
 
-    const matchedMembers = members.filter(
+    let matchedMembers = members.filter(
       (m) =>
-        String(m.game_id).toLowerCase().includes(query) ||
+        formatGameId(m.game_id).toLowerCase().includes(query) ||
         (m.name || '').toLowerCase().includes(query)
     );
+
+    // 特定の1名に絞り込まれている場合
+    if (selectedStatusCheckGameId) {
+      matchedMembers = matchedMembers.filter((m) => formatGameId(m.game_id) === selectedStatusCheckGameId);
+    }
 
     const eventTypesMap: Record<string, { total: number; statusCounts: Record<string, number> }> = {};
     
@@ -191,7 +250,7 @@ export default function EventsPage() {
     eventTypesMap['雪原兵器リーグ(詳細戦績)'] = { total: 0, statusCounts: {} };
 
     matchedMembers.forEach((member) => {
-      const gId = member.game_id;
+      const gId = formatGameId(member.game_id);
       
       events.forEach((ev) => {
         const title = ev.title;
@@ -199,7 +258,7 @@ export default function EventsPage() {
           eventTypesMap[title] = { total: 0, statusCounts: {} };
         }
         const part = participations.find(
-          (p) => p.event_id === ev.id && String(p.member_game_id).trim() === String(gId).trim()
+          (p) => p.event_id === ev.id && formatGameId(p.member_game_id) === gId
         );
         const st = part ? part.status : '-';
         eventTypesMap[title].total += 1;
@@ -207,7 +266,7 @@ export default function EventsPage() {
 
         if (title === '雪原兵器リーグ') {
           const leagueParts = leagueParticipations.filter(
-            (lp) => lp.event_id === ev.id && String(lp.member_game_id).trim() === String(gId).trim()
+            (lp) => lp.event_id === ev.id && formatGameId(lp.member_game_id) === gId
           );
           leagueParts.forEach((lp) => {
             const detailSt = lp.status || '-';
@@ -220,7 +279,13 @@ export default function EventsPage() {
     });
 
     return { matchedMembers, stats: eventTypesMap };
-  }, [statusCheckSearchQuery, members, events, participations, leagueParticipations]);
+  }, [statusCheckSearchQuery, selectedStatusCheckGameId, members, events, participations, leagueParticipations]);
+
+  // 検索ワードが変わったら個別選択を一旦リセット
+  function handleStatusSearchChange(val: string) {
+    setStatusCheckSearchQuery(val);
+    setSelectedStatusCheckGameId(null);
+  }
 
   async function handleAddEvent(e: React.FormEvent) {
     e.preventDefault();
@@ -290,52 +355,70 @@ export default function EventsPage() {
     }
   }
 
-  async function handleStatusChange(eventId: string, memberGameId: string | number, status: string) {
+  async function handleStatusChange(eventId: string, member: Member, status: string) {
+    const targetGameIdStr = formatGameId(member.game_id);
+    const targetEvent = events.find((ev) => ev.id === eventId);
+    const eventTitle = targetEvent ? targetEvent.title : '';
+    const memberName = member.name || '';
+
+    if (!targetGameIdStr) return;
+
+    setParticipations((prev) => {
+      const index = prev.findIndex((p) => p.event_id === eventId && formatGameId(p.member_game_id) === targetGameIdStr);
+      if (status === '-' || !status) {
+        if (index >= 0) {
+          const updated = [...prev];
+          updated.splice(index, 1);
+          return updated;
+        }
+        return prev;
+      } else {
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = { ...updated[index], status };
+          return updated;
+        } else {
+          return [...prev, { id: 'temp-' + Math.random(), event_id: eventId, member_game_id: targetGameIdStr, status, event: eventTitle, name: memberName }];
+        }
+      }
+    });
+
     if (status === '-' || !status) {
       const { error } = await supabase
         .from('event_participations')
         .delete()
         .eq('event_id', eventId)
-        .eq('member_game_id', memberGameId);
+        .eq('member_game_id', targetGameIdStr);
 
       if (error) {
         console.error('Error deleting participation:', error);
-      } else {
-        setParticipations((prev) =>
-          prev.filter((p) => !(p.event_id === eventId && String(p.member_game_id) === String(memberGameId)))
-        );
+        fetchData();
       }
       return;
     }
 
-    const { data, error } = await supabase
-      .from('event_participations')
-      .upsert(
-        [{ event_id: eventId, member_game_id: memberGameId, status }],
-        { onConflict: 'event_id, member_game_id' }
-      )
-      .select()
-      .single();
+    const payload: any = {
+      event_id: eventId,
+      member_game_id: targetGameIdStr,
+      status: status,
+    };
+    if (eventTitle) payload.event = eventTitle;
+    if (memberName) payload.name = memberName;
 
-    if (error) {
-      console.error('Error upserting participation:', error);
-      alert(`ステータスの保存に失敗しました: ${error.message}`);
-    } else if (data) {
-      setParticipations((prev) => {
-        const index = prev.findIndex((p) => p.event_id === eventId && String(p.member_game_id) === String(memberGameId));
-        if (index >= 0) {
-          const updated = [...prev];
-          updated[index] = data;
-          return updated;
-        } else {
-          return [...prev, data];
-        }
-      });
+    const { error: upsertErr } = await supabase
+      .from('event_participations')
+      .upsert([payload], { onConflict: 'event_id,member_game_id' });
+
+    if (upsertErr) {
+      console.error('Error upserting participation:', upsertErr);
+      alert(`ステータスの保存に失敗しました: ${upsertErr.message}`);
+      fetchData();
     }
   }
 
   function openLeagueModal(event: EventItem, member: Member) {
-    const parts = leagueParticipations.filter(p => p.event_id === event.id && String(p.member_game_id) === String(member.game_id));
+    const gId = formatGameId(member.game_id);
+    const parts = leagueParticipations.filter(p => p.event_id === event.id && formatGameId(p.member_game_id) === gId);
     const edits: Record<number, string> = {};
     for (let i = 1; i <= 7; i++) {
       const part = parts.find(p => p.match_number === i);
@@ -349,28 +432,28 @@ export default function EventsPage() {
   async function handleSaveLeagueModal() {
     if (!leagueModalData) return;
     const { event, member } = leagueModalData;
+    const targetGameIdStr = formatGameId(member.game_id);
 
-    const upsertData = [];
     for (let i = 1; i <= 7; i++) {
-      upsertData.push({
-        event_id: event.id,
-        member_game_id: member.game_id,
-        match_number: i,
-        status: leagueModalEdits[i],
-      });
+      const matchStatus = leagueModalEdits[i];
+      const existingPart = leagueParticipations.find(
+        p => p.event_id === event.id && formatGameId(p.member_game_id) === targetGameIdStr && p.match_number === i
+      );
+
+      if (existingPart && existingPart.id) {
+        await supabase
+          .from('league_participations')
+          .update({ status: matchStatus })
+          .eq('id', existingPart.id);
+      } else {
+        await supabase
+          .from('league_participations')
+          .insert([{ event_id: event.id, member_game_id: targetGameIdStr, match_number: i, status: matchStatus }]);
+      }
     }
 
-    const { error } = await supabase
-      .from('league_participations')
-      .upsert(upsertData, { onConflict: 'event_id, member_game_id, match_number' });
-
-    if (error) {
-      console.error(error);
-      alert(`兵器リーグの詳細データの保存に失敗しました: ${error.message}`);
-    } else {
-      setIsLeagueModalOpen(false);
-      fetchData();
-    }
+    setIsLeagueModalOpen(false);
+    fetchData();
   }
 
   async function moveEvent(index: number, direction: 'left' | 'right', e: React.MouseEvent) {
@@ -391,8 +474,9 @@ export default function EventsPage() {
   }
 
   function toggleNameFilter(gameId: string) {
+    const fId = formatGameId(gameId);
     setNameFilters((prev) =>
-      prev.includes(gameId) ? prev.filter((id) => id !== gameId) : [...prev, gameId]
+      prev.includes(fId) ? prev.filter((id) => id !== fId) : [...prev, fId]
     );
   }
 
@@ -428,7 +512,8 @@ export default function EventsPage() {
       if (viewMode === 'active' && memberStatus === 'left') return false;
       if (viewMode === 'left' && memberStatus !== 'left') return false;
 
-      const isChecked = !!checkedRows[String(member.game_id)];
+      const gIdStr = formatGameId(member.game_id);
+      const isChecked = !!checkedRows[gIdStr];
       if (rowCheckFilter === 'checked' && !isChecked) return false;
       if (rowCheckFilter === 'unchecked' && isChecked) return false;
 
@@ -436,7 +521,7 @@ export default function EventsPage() {
         const query = globalSearch.toLowerCase();
         if (
           !(member.name || '').toLowerCase().includes(query) &&
-          !(String(member.game_id) || '').toLowerCase().includes(query) &&
+          !gIdStr.toLowerCase().includes(query) &&
           !(member.alliance || '').toLowerCase().includes(query)
         ) {
           return false;
@@ -444,7 +529,7 @@ export default function EventsPage() {
       }
 
       if (nameFilters.length > 0) {
-        if (!nameFilters.includes(String(member.game_id))) {
+        if (!nameFilters.includes(gIdStr)) {
           return false;
         }
       }
@@ -460,7 +545,7 @@ export default function EventsPage() {
         const selectedStatuses = eventFilters[event.id] || [];
         if (selectedStatuses.length > 0) {
           const part = participations.find(
-            (p) => p.event_id === event.id && String(p.member_game_id).trim() === String(member.game_id).trim()
+            (p) => p.event_id === event.id && formatGameId(p.member_game_id) === gIdStr
           );
           const currentStatus = part ? part.status : '-';
           if (!selectedStatuses.includes(currentStatus)) {
@@ -476,6 +561,9 @@ export default function EventsPage() {
       let valA = '';
       let valB = '';
 
+      const gA = formatGameId(a.game_id);
+      const gB = formatGameId(b.game_id);
+
       if (sortField === 'name') {
         valA = (a.name || '').toLowerCase();
         valB = (b.name || '').toLowerCase();
@@ -483,8 +571,8 @@ export default function EventsPage() {
         valA = (a.alliance || '').toLowerCase();
         valB = (b.alliance || '').toLowerCase();
       } else {
-        const partA = participations.find((p) => p.event_id === sortField && String(p.member_game_id).trim() === String(a.game_id).trim());
-        const partB = participations.find((p) => p.event_id === sortField && String(p.member_game_id).trim() === String(b.game_id).trim());
+        const partA = participations.find((p) => p.event_id === sortField && formatGameId(p.member_game_id) === gA);
+        const partB = participations.find((p) => p.event_id === sortField && formatGameId(p.member_game_id) === gB);
         valA = partA ? partA.status : '-';
         valB = partB ? partB.status : '-';
       }
@@ -524,15 +612,16 @@ export default function EventsPage() {
     const csvRows = [headers.join(',')];
 
     for (const member of members) {
+      const gIdStr = formatGameId(member.game_id);
       const row = [
-        `"${member.game_id}"`,
+        `"${gIdStr}"`,
         `"${member.name}"`,
         `"${member.alliance || ''}"`,
       ];
 
       for (const event of events) {
         const part = participations.find(
-          (p) => p.event_id === event.id && String(p.member_game_id).trim() === String(member.game_id).trim()
+          (p) => p.event_id === event.id && formatGameId(p.member_game_id) === gIdStr
         );
         const status = part ? part.status : '-';
         row.push(`"${status}"`);
@@ -575,7 +664,10 @@ export default function EventsPage() {
         const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
         if (row.length < 3) continue;
 
-        const gameId = row[0].replace(/^"|"$/g, '').trim();
+        const gameId = formatGameId(row[0].replace(/^"|"$/g, '').trim());
+        const targetMember = members.find(m => formatGameId(m.game_id) === gameId);
+        if (!targetMember) continue;
+
         for (let j = 0; j < eventHeaders.length; j++) {
           const colIndex = 3 + j;
           if (row[colIndex] !== undefined) {
@@ -584,12 +676,12 @@ export default function EventsPage() {
               const targetEventId = events[j].id;
 
               const existingPart = participations.find(
-                (p) => p.event_id === targetEventId && String(p.member_game_id).trim() === String(gameId).trim()
+                (p) => p.event_id === targetEventId && formatGameId(p.member_game_id) === gameId
               );
               const currentStatus = existingPart ? existingPart.status : '-';
 
               if (currentStatus !== newStatus) {
-                await handleStatusChange(targetEventId, gameId, newStatus);
+                await handleStatusChange(targetEventId, targetMember, newStatus);
                 processedCount++;
               } else {
                 skippedCount++;
@@ -723,13 +815,13 @@ export default function EventsPage() {
                       const checked = e.target.checked;
                       const newChecked = { ...checkedRows };
                       filteredAndSortedMembers.forEach((m) => {
-                        newChecked[String(m.game_id)] = checked;
+                        newChecked[formatGameId(m.game_id)] = checked;
                       });
                       setCheckedRows(newChecked);
                     }}
                     checked={
                       filteredAndSortedMembers.length > 0 &&
-                      filteredAndSortedMembers.every((m) => checkedRows[String(m.game_id)])
+                      filteredAndSortedMembers.every((m) => checkedRows[formatGameId(m.game_id)])
                     }
                     className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 cursor-pointer"
                   />
@@ -848,16 +940,17 @@ export default function EventsPage() {
                       </div>
                       <div className="max-h-48 overflow-y-auto space-y-1">
                         {filteredMemberListForPopup.map((member) => {
-                          const isChecked = nameFilters.includes(String(member.game_id));
+                          const fId = formatGameId(member.game_id);
+                          const isChecked = nameFilters.includes(fId);
                           return (
                             <label
-                              key={String(member.game_id)}
+                              key={fId}
                               className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-800 cursor-pointer text-gray-300 text-xs"
                             >
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => toggleNameFilter(String(member.game_id))}
+                                onChange={() => toggleNameFilter(fId)}
                                 className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0"
                               />
                               <span className="truncate">{member.name}</span>
@@ -988,11 +1081,11 @@ export default function EventsPage() {
             </thead>
             <tbody>
               {filteredAndSortedMembers.map((member) => {
-                const gameIdStr = String(member.game_id);
-                const isRowChecked = !!checkedRows[gameIdStr];
+                const gIdStr = formatGameId(member.game_id);
+                const isRowChecked = !!checkedRows[gIdStr];
 
                 return (
-                  <tr key={gameIdStr} className="hover:bg-gray-850 border-b border-gray-800/60">
+                  <tr key={gIdStr} className="hover:bg-gray-850 border-b border-gray-800/60">
                     <td
                       style={{ left: '0px', width: '50px', minWidth: '50px', maxWidth: '50px' }}
                       className="px-3 py-2 sticky bg-gray-900 z-10 text-center"
@@ -1001,7 +1094,7 @@ export default function EventsPage() {
                         type="checkbox"
                         checked={isRowChecked}
                         onChange={(e) => {
-                          setCheckedRows({ ...checkedRows, [gameIdStr]: e.target.checked });
+                          setCheckedRows({ ...checkedRows, [gIdStr]: e.target.checked });
                         }}
                         className="rounded bg-gray-800 border-gray-700 text-blue-600 focus:ring-0 cursor-pointer"
                       />
@@ -1023,14 +1116,14 @@ export default function EventsPage() {
 
                     {events.map((event) => {
                       const part = participations.find(
-                        (p) => p.event_id === event.id && String(p.member_game_id).trim() === gameIdStr
+                        (p) => p.event_id === event.id && formatGameId(p.member_game_id) === gIdStr
                       );
                       const currentStatus = part ? part.status : '-';
                       const currentOptions = getOptionsForEvent(event.title);
 
                       if (event.title === '雪原兵器リーグ') {
                         const leagueParts = leagueParticipations.filter(
-                          (p) => p.event_id === event.id && String(p.member_game_id).trim() === gameIdStr
+                          (p) => p.event_id === event.id && formatGameId(p.member_game_id) === gIdStr
                         );
                         const summaryText = leagueParts.length > 0
                           ? `${leagueParts.filter(p => p.status !== '-' && p.status !== '未エントリー').length}/7戦参加`
@@ -1041,7 +1134,7 @@ export default function EventsPage() {
                             <div className="flex flex-col gap-1.5">
                               <select
                                 value={currentStatus}
-                                onChange={(e) => handleStatusChange(event.id, member.game_id, e.target.value)}
+                                onChange={(e) => handleStatusChange(event.id, member, e.target.value)}
                                 className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-white focus:outline-none focus:border-blue-500"
                               >
                                 {currentOptions.map((opt) => (
@@ -1065,7 +1158,7 @@ export default function EventsPage() {
                         <td key={event.id} className="px-4 py-2 border-l border-gray-800 text-gray-300">
                           <select
                             value={currentStatus}
-                            onChange={(e) => handleStatusChange(event.id, member.game_id, e.target.value)}
+                            onChange={(e) => handleStatusChange(event.id, member, e.target.value)}
                             className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-white focus:outline-none focus:border-blue-500"
                           >
                             {currentOptions.map((opt) => (
@@ -1110,13 +1203,16 @@ export default function EventsPage() {
                   type="text"
                   placeholder="検索ワード（名前またはゲームIDを入力...）"
                   value={statusCheckSearchQuery}
-                  onChange={(e) => setStatusCheckSearchQuery(e.target.value)}
+                  onChange={(e) => handleStatusSearchChange(e.target.value)}
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500 shadow-inner"
                   autoFocus
                 />
                 {statusCheckSearchQuery && (
                   <button
-                    onClick={() => setStatusCheckSearchQuery('')}
+                    onClick={() => {
+                      setStatusCheckSearchQuery('');
+                      setSelectedStatusCheckGameId(null);
+                    }}
                     className="absolute right-3 top-3.5 text-xs text-gray-400 hover:text-white bg-gray-700 px-2 py-1 rounded"
                   >
                     クリア
@@ -1134,13 +1230,37 @@ export default function EventsPage() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="bg-gray-800/50 p-3 rounded-xl border border-gray-800 flex flex-wrap gap-2 items-center">
-                    <span className="text-xs text-gray-400 font-semibold">一致したメンバー ({statusCheckResults.matchedMembers.length}名):</span>
-                    {statusCheckResults.matchedMembers.map((m) => (
-                      <span key={String(m.game_id)} className="bg-indigo-950 text-indigo-200 border border-indigo-800 text-xs px-2.5 py-1 rounded-lg">
-                        {m.name} <span className="text-[10px] text-indigo-400">({m.game_id})</span>
-                      </span>
-                    ))}
+                  <div className="bg-gray-800/50 p-3.5 rounded-xl border border-gray-800 flex flex-wrap gap-2 items-center justify-between">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-xs text-gray-400 font-semibold">一致したメンバー (クリックして1名を選択):</span>
+                      {statusCheckResults.matchedMembers.map((m) => {
+                        const fId = formatGameId(m.game_id);
+                        const isSelected = selectedStatusCheckGameId === fId;
+                        return (
+                          <button
+                            key={fId}
+                            onClick={() => setSelectedStatusCheckGameId(isSelected ? null : fId)}
+                            className={`text-xs px-3 py-1.5 rounded-lg border transition flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-indigo-600 border-indigo-400 text-white shadow-md'
+                                : 'bg-indigo-950/70 border-indigo-800/70 text-indigo-200 hover:bg-indigo-900/60'
+                            }`}
+                          >
+                            <span>{m.name}</span>
+                            <span className={`text-[10px] ${isSelected ? 'text-indigo-200' : 'text-indigo-400'}`}>({fId})</span>
+                            {isSelected && <span className="ml-1 text-[10px] bg-indigo-800 px-1 rounded">選択中 ✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedStatusCheckGameId && (
+                      <button
+                        onClick={() => setSelectedStatusCheckGameId(null)}
+                        className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-700 transition"
+                      >
+                        全員の合算に戻す
+                      </button>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
