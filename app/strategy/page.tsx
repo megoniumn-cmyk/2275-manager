@@ -33,6 +33,16 @@ export default function StrategyParentPage() {
             <p className="text-xs text-slate-400">霜竜の覇者に関する戦略や配置を確認します。</p>
           </Link>
 
+          {/* 霜竜水晶スキルへ (新規追加) */}
+          <Link 
+            href="/strategy/crystal"
+            className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
+          >
+            <div className="text-2xl">💎</div>
+            <h2 className="text-base font-bold text-white group-hover:text-cyan-400 transition">霜竜水晶スキル</h2>
+            <p className="text-xs text-slate-400">霜竜の覇者における水晶スキルのシミュレーションや採集・護衛ノルマの管理。</p>
+          </Link>
+
           {/* 雪原兵器リーグへ */}
           <Link 
             href="/strategy/tal"
@@ -43,7 +53,7 @@ export default function StrategyParentPage() {
             <p className="text-xs text-slate-400">雪原兵器リーグの編成や対策を管理します。</p>
           </Link>
 
-          {/* 峡谷合戦へ (新規追加) */}
+          {/* 峡谷合戦へ */}
           <Link 
             href="/strategy/canyon"
             className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
@@ -53,7 +63,7 @@ export default function StrategyParentPage() {
             <p className="text-xs text-slate-400">峡谷合戦の参戦管理や部隊編成、作戦プランの確認を行います。</p>
           </Link>
 
-          {/* 兵器工場戦へ (新規追加) */}
+          {/* 兵器工場戦へ */}
           <Link 
             href="/strategy/armory"
             className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
@@ -63,7 +73,7 @@ export default function StrategyParentPage() {
             <p className="text-xs text-slate-400">兵器工場戦の占領スケジュールやチーム割当、戦術の管理。</p>
           </Link>
 
-          {/* イベント履歴・予想へ (新規追加) */}
+          {/* イベント履歴・予想へ */}
           <Link 
             href="/strategy/events"
             className="bg-[#151c2c] hover:bg-[#1b253b] border border-slate-800 hover:border-cyan-500/50 p-6 rounded-2xl shadow-xl transition cursor-pointer space-y-3 group block"
