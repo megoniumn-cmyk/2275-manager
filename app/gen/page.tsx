@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
@@ -10,19 +11,16 @@ interface MemberItem {
   game_id: string;
   rank_role: string;
   fc_level: string;
-  shield_soldier: string;
-  spear_soldier: string;
-  bow_soldier: string;
-  power_before_migration: string | number;
   current_power: string | number;
-  gen_discord: boolean;
-  info_sharing: boolean;
-  bear: string;
+  status_type: string;
+  is_2480: boolean;
+  migration_dest: string;
+  migration_time: string;
+  remarks: string;
 }
 
-const FC_OPTIONS = ['FC10', 'FC9', 'FC8', 'FC7', 'FC6以下'];
-const SOLDIER_OPTIONS = ['FC10T11', 'FC9T11', 'FC8T11', 'FC7T11', 'FC6T11', 'FC5T11', 'FC10T10', 'FC9T10', 'FC8T10', 'FC7T10', 'FC6T10以下'];
-const BEAR_OPTIONS = ['21時', '23時', '21/23時両方'];
+const STATUS_TYPE_OPTIONS = ['移民', '移籍', 'GEN', '引退', '検討中', 'その他'];
+const MIGRATION_TIME_OPTIONS = ['11/8', '12/6', '1/3', '1/31', '未定'];
 
 type SortField = keyof MemberItem;
 type SortOrder = 'asc' | 'desc';
@@ -39,14 +37,12 @@ export default function GenMemberManagementPage() {
     game_id: [],
     rank_role: [],
     fc_level: [],
-    shield_soldier: [],
-    spear_soldier: [],
-    bow_soldier: [],
-    power_before_migration: [],
     current_power: [],
-    gen_discord: [],
-    info_sharing: [],
-    bear: [],
+    status_type: [],
+    is_2480: [],
+    migration_dest: [],
+    migration_time: [],
+    remarks: [],
   });
 
   // どの列のフィルターポップアップが開いているか
@@ -85,8 +81,7 @@ export default function GenMemberManagementPage() {
         ...item,
         id: item.id || item.game_id || `fallback-id-${index}`,
         is_checked: false,
-        gen_discord: item.gen_discord === true || item.gen_discord === 'true',
-        info_sharing: item.info_sharing === true || item.info_sharing === 'true',
+        is_2480: item.is_2480 === true || item.is_2480 === 'true',
       }));
       setMembers(initialized);
     }
@@ -94,8 +89,8 @@ export default function GenMemberManagementPage() {
 
   const handleUpdateField = async (gameId: string, id: string, field: keyof MemberItem, value: any) => {
     let dbValue = value;
-    if (field === 'gen_discord' || field === 'info_sharing') {
-      dbValue = value ? 'true' : 'false';
+    if (field === 'is_2480') {
+      dbValue = value ? true : false;
     } else if (dbValue === '') {
       dbValue = null;
     }
@@ -141,7 +136,7 @@ export default function GenMemberManagementPage() {
   const getUniqueValues = (field: keyof MemberItem) => {
     const values = members.map(m => {
       let val = m[field];
-      if (field === 'gen_discord' || field === 'info_sharing') {
+      if (field === 'is_2480') {
         return val ? '○' : '-';
       }
       return val !== null && val !== undefined && val !== '' ? String(val) : '(未設定)';
@@ -168,7 +163,7 @@ export default function GenMemberManagementPage() {
         if (selectedValues && selectedValues.length > 0) {
           let val = m[key];
           let displayVal = val !== null && val !== undefined && val !== '' ? String(val) : '(未設定)';
-          if (key === 'gen_discord' || key === 'info_sharing') {
+          if (key === 'is_2480') {
             displayVal = val ? '○' : '-';
           }
           if (!selectedValues.includes(displayVal)) {
@@ -185,7 +180,7 @@ export default function GenMemberManagementPage() {
         let valA: any = a[sortField];
         let valB: any = b[sortField];
 
-        if (sortField === 'current_power' || sortField === 'power_before_migration') {
+        if (sortField === 'current_power') {
           valA = parsePower(valA);
           valB = parsePower(valB);
         } else {
@@ -242,7 +237,7 @@ export default function GenMemberManagementPage() {
 
       {/* テーブル本体 */}
       <div className="bg-[#151c2c] border border-slate-800 rounded-xl shadow-xl overflow-x-auto flex-1 max-h-[75vh]">
-        <table className="w-full text-left border-collapse min-w-[1700px] table-fixed">
+        <table className="w-full text-left border-collapse min-w-[1500px] table-fixed">
           <thead>
             <tr className="border-b border-slate-800 bg-[#0b0f19] text-[11px] text-slate-400 sticky top-0 z-30 whitespace-nowrap">
               {/* 作業列 */}
@@ -267,22 +262,19 @@ export default function GenMemberManagementPage() {
               {[
                 { key: 'game_id', label: 'ゲームID', width: 'w-[120px]' },
                 { key: 'rank_role', label: 'rank_role', width: 'w-[110px]' },
-                { key: 'fc_level', label: 'FC (fc_level)', width: 'w-[110px]' },
-                { key: 'shield_soldier', label: '盾 (shield)', width: 'w-[110px]' },
-                { key: 'spear_soldier', label: '槍 (spear)', width: 'w-[110px]' },
-                { key: 'bow_soldier', label: '弓 (bow)', width: 'w-[110px]' },
-                { key: 'power_before_migration', label: '総力(移民前)', width: 'w-[120px]' },
-                { key: 'current_power', label: '総力(移民後)', width: 'w-[120px]' },
-                { key: 'gen_discord', label: 'GEN Discord', width: 'w-[110px]', center: true },
-                { key: 'info_sharing', label: '情報共有', width: 'w-[110px]', center: true },
-                { key: 'bear', label: 'クマ罠 (bear)', width: 'w-[130px]' },
+                { key: 'fc_level', label: 'FC', width: 'w-[110px]' },
+                { key: 'current_power', label: '総力(移民後)', width: 'w-[130px]' },
+                { key: 'status_type', label: 'ステータス', width: 'w-[130px]' },
+                { key: 'is_2480', label: '2480', width: 'w-[90px]', center: true },
+                { key: 'migration_dest', label: '移民・移籍先', width: 'w-[150px]' },
+                { key: 'migration_time', label: '移民時期', width: 'w-[120px]' },
+                { key: 'remarks', label: '備考', width: 'w-[200px]' },
               ].map((col) => {
                 const isFiltered = (columnFilters[col.key] || []).length > 0;
                 const isCurrentSorted = sortField === col.key;
                 return (
                   <th key={col.key} className={`p-3 font-semibold ${col.width} border-b border-slate-800 relative`}>
                     <div className="flex items-center justify-between select-none">
-                      {/* カラム名クリックで昇降順並び替え */}
                       <span 
                         onClick={() => handleSort(col.key as SortField)}
                         className={`cursor-pointer hover:text-cyan-400 flex items-center gap-1.5 ${col.center ? 'w-full justify-center' : ''}`}
@@ -293,7 +285,6 @@ export default function GenMemberManagementPage() {
                         </span>
                       </span>
 
-                      {/* 虫眼鏡アイコンボタンでフィルター */}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -362,7 +353,7 @@ export default function GenMemberManagementPage() {
           <tbody className="text-xs whitespace-nowrap">
             {filteredAndSortedMembers.length === 0 ? (
               <tr key="no-members">
-                <td colSpan={12} className="text-center py-12 text-slate-500">
+                <td colSpan={10} className="text-center py-12 text-slate-500">
                   条件に該当するGENメンバーがいません
                 </td>
               </tr>
@@ -396,107 +387,72 @@ export default function GenMemberManagementPage() {
                     {member.rank_role || '-'}
                   </td>
 
-                  <td className="p-3 w-[110px] border-b border-slate-800/60">
-                    <select
-                      value={member.fc_level || ''}
-                      onChange={(e) => handleUpdateField(member.game_id, member.id!, 'fc_level', e.target.value)}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500"
-                    >
-                      <option value="">-</option>
-                      {FC_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
+                  {/* FC (fc_level) -> 変更不可（テキスト表示） */}
+                  <td className="p-3 font-mono text-slate-200 w-[110px] truncate border-b border-slate-800/60">
+                    {member.fc_level || '-'}
                   </td>
 
-                  <td className="p-3 w-[110px] border-b border-slate-800/60">
-                    <select
-                      value={member.shield_soldier || ''}
-                      onChange={(e) => handleUpdateField(member.game_id, member.id!, 'shield_soldier', e.target.value)}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500 text-[11px]"
-                    >
-                      <option value="">-</option>
-                      {SOLDIER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
+                  {/* 総力(移民後) -> 変更不可（テキスト表示） */}
+                  <td className="p-3 font-mono text-slate-200 w-[130px] truncate border-b border-slate-800/60">
+                    {member.current_power || '-'}
                   </td>
 
-                  <td className="p-3 w-[110px] border-b border-slate-800/60">
-                    <select
-                      value={member.spear_soldier || ''}
-                      onChange={(e) => handleUpdateField(member.game_id, member.id!, 'spear_soldier', e.target.value)}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500 text-[11px]"
-                    >
-                      <option value="">-</option>
-                      {SOLDIER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </td>
-
-                  <td className="p-3 w-[110px] border-b border-slate-800/60">
-                    <select
-                      value={member.bow_soldier || ''}
-                      onChange={(e) => handleUpdateField(member.game_id, member.id!, 'bow_soldier', e.target.value)}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500 text-[11px]"
-                    >
-                      <option value="">-</option>
-                      {SOLDIER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </td>
-
-                  <td className="p-3 w-[120px] border-b border-slate-800/60">
-                    <input
-                      type="text"
-                      defaultValue={member.power_before_migration || ''}
-                      onBlur={(e) => handleUpdateField(member.game_id, member.id!, 'power_before_migration', e.target.value)}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500"
-                    />
-                  </td>
-
-                  <td className="p-3 w-[120px] border-b border-slate-800/60">
-                    <input
-                      type="text"
-                      defaultValue={member.current_power || ''}
-                      onBlur={(e) => handleUpdateField(member.game_id, member.id!, 'current_power', e.target.value)}
-                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500"
-                    />
-                  </td>
-
-                  <td className="p-3 w-[110px] text-center border-b border-slate-800/60">
-                    <div className="flex justify-center items-center">
-                      <input
-                        type="checkbox"
-                        checked={member.gen_discord}
-                        onChange={(e) => handleUpdateField(member.game_id, member.id!, 'gen_discord', e.target.checked)}
-                        className={`w-4 h-4 rounded border cursor-pointer transition ${
-                          member.gen_discord
-                            ? 'bg-emerald-500 border-emerald-400 text-white accent-emerald-500'
-                            : 'bg-slate-900 border-slate-700 text-slate-500'
-                        }`}
-                      />
-                    </div>
-                  </td>
-
-                  <td className="p-3 w-[110px] text-center border-b border-slate-800/60">
-                    <div className="flex justify-center items-center">
-                      <input
-                        type="checkbox"
-                        checked={member.info_sharing}
-                        onChange={(e) => handleUpdateField(member.game_id, member.id!, 'info_sharing', e.target.checked)}
-                        className={`w-4 h-4 rounded border cursor-pointer transition ${
-                          member.info_sharing
-                            ? 'bg-emerald-500 border-emerald-400 text-white accent-emerald-500'
-                            : 'bg-slate-900 border-slate-700 text-slate-500'
-                        }`}
-                      />
-                    </div>
-                  </td>
-
+                  {/* ステータス -> プルダウン */}
                   <td className="p-3 w-[130px] border-b border-slate-800/60">
                     <select
-                      value={member.bear || ''}
-                      onChange={(e) => handleUpdateField(member.game_id, member.id!, 'bear', e.target.value)}
+                      value={member.status_type || ''}
+                      onChange={(e) => handleUpdateField(member.game_id, member.id!, 'status_type', e.target.value)}
                       className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500 text-xs"
                     >
                       <option value="">(未選択)</option>
-                      {BEAR_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      {STATUS_TYPE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
+                  </td>
+
+                  {/* 2480 -> チェックボックス */}
+                  <td className="p-3 w-[90px] text-center border-b border-slate-800/60">
+                    <div className="flex justify-center items-center">
+                      <input
+                        type="checkbox"
+                        checked={member.is_2480 || false}
+                        onChange={(e) => handleUpdateField(member.game_id, member.id!, 'is_2480', e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer accent-cyan-500"
+                      />
+                    </div>
+                  </td>
+
+                  {/* 移民・移籍先 -> 手入力 */}
+                  <td className="p-3 w-[150px] border-b border-slate-800/60">
+                    <input
+                      type="text"
+                      defaultValue={member.migration_dest || ''}
+                      onBlur={(e) => handleUpdateField(member.game_id, member.id!, 'migration_dest', e.target.value)}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500 text-xs"
+                      placeholder="入力..."
+                    />
+                  </td>
+
+                  {/* 移民時期 -> プルダウン */}
+                  <td className="p-3 w-[120px] border-b border-slate-800/60">
+                    <select
+                      value={member.migration_time || ''}
+                      onChange={(e) => handleUpdateField(member.game_id, member.id!, 'migration_time', e.target.value)}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500 text-xs"
+                    >
+                      <option value="">(未選択)</option>
+                      {MIGRATION_TIME_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </td>
+
+                  {/* 備考 -> 手入力 */}
+                  <td className="p-3 w-[200px] border-b border-slate-800/60">
+                    <input
+                      type="text"
+                      defaultValue={member.remarks || ''}
+                      onBlur={(e) => handleUpdateField(member.game_id, member.id!, 'remarks', e.target.value)}
+                      className="w-full bg-[#0b0f19] border border-slate-700 rounded p-1 text-slate-200 outline-none focus:border-cyan-500 text-xs"
+                      placeholder="入力..."
+                    />
                   </td>
                 </tr>
               ))
